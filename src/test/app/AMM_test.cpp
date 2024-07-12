@@ -6870,17 +6870,17 @@ private:
             env.close();
             // Can't be cleared
             AMM amm2(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
-            }
-            // If featureAMMClawback is enabled, AMMCreare is allowed for
-            // clawback-enabled issuer and clawback from the AMM Account is not
-            // allowed, which will return tecAMM_ACCOUNT
-            else
-            {
-                AMM amm(env, gw, XRP(100), USD(100), ter(tesSUCCESS));
-                AMM amm1(env, alice, USD(100), XRP(200), ter(tecDUPLICATE));
-                env(amm::clawback(gw, amm.ammAccount(), "USD", "10"),
-                    ter(tecAMM_ACCOUNT));
-            }
+        }
+        // If featureAMMClawback is enabled, AMMCreare is allowed for
+        // clawback-enabled issuer and clawback from the AMM Account is not
+        // allowed, which will return tecAMM_ACCOUNT
+        else
+        {
+            AMM amm(env, gw, XRP(100), USD(100), ter(tesSUCCESS));
+            AMM amm1(env, alice, USD(100), XRP(200), ter(tecDUPLICATE));
+            env(amm::clawback(gw, amm.ammAccount(), "USD", "10"),
+                ter(tecAMM_ACCOUNT));
+        }
     }
 
     void
