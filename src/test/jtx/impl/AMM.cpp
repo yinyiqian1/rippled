@@ -812,6 +812,7 @@ trust(AccountID const& account, STAmount const& amount, std::uint32_t flags)
     jv[jss::Flags] = flags;
     return jv;
 }
+
 Json::Value
 pay(Account const& account, AccountID const& to, STAmount const& amount)
 {
@@ -821,6 +822,26 @@ pay(Account const& account, AccountID const& to, STAmount const& amount)
     jv[jss::Destination] = to_string(to);
     jv[jss::TransactionType] = jss::Payment;
     jv[jss::Flags] = tfUniversal;
+    return jv;
+}
+
+Json::Value
+clawback(
+    Account const& account,
+    AccountID const& issuer,
+    std::string const& currency,
+    std::string const& value)
+{
+    Json::Value amount;
+    amount[jss::value] = value;
+    amount[jss::currency] = currency;
+    amount[jss::issuer] = toBase58(issuer);
+
+    Json::Value jv;
+    jv[jss::Account] = account.human();
+    jv[jss::Amount] = amount;
+    jv[jss::TransactionType] = jss::Clawback;
+
     return jv;
 }
 }  // namespace amm

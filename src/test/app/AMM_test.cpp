@@ -6848,34 +6848,39 @@ private:
     }
 
     void
-    testIssuerClawback(FeatureBitset features)
+    testAMMClawback(FeatureBitset features)
     {
-        testcase("Issuer Clawback");
+        testcase("test clawback from AMM account");
         using namespace jtx;
 
         // Issuer has clawback enabled
-        {
-            Env env(*this, features);
-            env.fund(XRP(1'000), gw);
-            env(fset(gw, asfAllowTrustLineClawback));
-            fund(env, gw, {alice}, XRP(1'000), {USD(1'000)}, Fund::Acct);
-            env.close();
+        Env env(*this, features);
+        env.fund(XRP(1'000), gw);
+        env(fset(gw, asfAllowTrustLineClawback));
+        fund(env, gw, {alice}, XRP(1'000), {USD(1'000)}, Fund::Acct);
+        env.close();
 
-            if (!features[featureAMMClawback])
-            {
-                AMM amm(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
-                AMM amm1(env, alice, USD(100), XRP(100), ter(tecNO_PERMISSION));
-                env(fclear(gw, asfAllowTrustLineClawback));
-                env.close();
-                // Can't be cleared
-                AMM amm2(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
+        // If featureAMMClawback is not enabled, AMMCreate is not allowed for
+        // clawback-enabled issuer
+        if (!features[featureAMMClawback])
+        {
+            AMM amm(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
+            AMM amm1(env, alice, USD(100), XRP(100), ter(tecNO_PERMISSION));
+            env(fclear(gw, asfAllowTrustLineClawback));
+            env.close();
+            // Can't be cleared
+            AMM amm2(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
             }
+            // If featureAMMClawback is enabled, AMMCreare is allowed for
+            // clawback-enabled issuer and clawback from the AMM Account is not
+            // allowed, which will return tecAMM_ACCOUNT
             else
             {
                 AMM amm(env, gw, XRP(100), USD(100), ter(tesSUCCESS));
                 AMM amm1(env, alice, USD(100), XRP(200), ter(tecDUPLICATE));
+                env(amm::clawback(gw, amm.ammAccount(), "USD", "10"),
+                    ter(tecAMM_ACCOUNT));
             }
-        }
     }
 
     void
@@ -6924,8 +6929,8 @@ private:
         testFixAMMOfferBlockedByLOB(all - fixAMMv1_1);
         testLPTokenBalance(all);
         testLPTokenBalance(all - fixAMMv1_1);
-        testIssuerClawback(all);
-        testIssuerClawback(all | featureAMMClawback);
+        testAMMClawback(all);
+        testAMMClawback(all | featureAMMClawback);
     }
 };
 
