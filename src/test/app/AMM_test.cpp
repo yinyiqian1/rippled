@@ -6930,7 +6930,7 @@ private:
         testLPTokenBalance(all);
         testLPTokenBalance(all - fixAMMv1_1);
         testAMMClawback(all);
-        testAMMClawback(all | featureAMMClawback);
+        testAMMClawback(all - featureAMMClawback);
     }
 };
 
