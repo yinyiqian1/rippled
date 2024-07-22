@@ -246,7 +246,6 @@ AMMDeposit::preclaim(PreclaimContext const& ctx)
 
     if (ctx.view.rules().enabled(featureAMMClawback))
     {
-        std::cout << "amm clawback enabled " << std::endl;
         // Check if either of the assets is frozen, AMMDeposit is not allowed
         // if either asset is frozen
         auto checkAsset = [&](std::optional<Issue> const& asset) -> TER {

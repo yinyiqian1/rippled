@@ -6882,7 +6882,7 @@ private:
         {
             // Deposit two assets, one of which is frozen,
             // then we should get tecFROZEN error.
-            Env env(*this);
+            Env env(*this, features);
             auto amm = setupAMM(env);
             amm->deposit(
                 alice,
@@ -6897,7 +6897,7 @@ private:
         {
             // Deposit one asset, which is the frozen token,
             // then we should get tecFROZEN error.
-            Env env(*this);
+            Env env(*this, features);
             auto amm = setupAMM(env);
             amm->deposit(
                 alice,
@@ -6914,7 +6914,7 @@ private:
             // Deposit one asset which is not the frozen token,
             // but the other asset is frozen. We should get tecFROZEN error
             // when feature AMMClawback is enabled.
-            Env env(*this);
+            Env env(*this, features);
             auto amm = setupAMM(env);
             amm->deposit(
                 alice,
@@ -6929,7 +6929,7 @@ private:
             // Deposit one asset which is not the frozen token,
             // but the other asset is frozen. We will get tecSUCCESS
             // when feature AMMClawback is not enabled.
-            Env env(*this);
+            Env env(*this, features);
             auto amm = setupAMM(env);
             amm->deposit(
                 alice,
