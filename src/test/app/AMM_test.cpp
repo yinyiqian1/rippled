@@ -434,7 +434,7 @@ private:
     }
 
     void
-    testInvalidDeposit()
+    testInvalidDeposit(FeatureBitset features)
     {
         testcase("Invalid Deposit");
 
@@ -892,39 +892,66 @@ private:
         });
 
         // Individually frozen (AMM) account
-        testAMM([&](AMM& ammAlice, Env& env) {
-            env(trust(gw, carol["USD"](0), tfSetFreeze));
-            env.close();
-            // Can deposit non-frozen token
-            ammAlice.deposit(carol, XRP(100));
-            ammAlice.deposit(
-                carol, 1'000'000, std::nullopt, std::nullopt, ter(tecFROZEN));
-            ammAlice.deposit(
-                carol,
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-            env(trust(gw, carol["USD"](0), tfClearFreeze));
-            // Individually frozen AMM
-            env(trust(
-                gw,
-                STAmount{Issue{gw["USD"].currency, ammAlice.ammAccount()}, 0},
-                tfSetFreeze));
-            env.close();
-            // Can deposit non-frozen token
-            ammAlice.deposit(carol, XRP(100));
-            ammAlice.deposit(
-                carol, 1'000'000, std::nullopt, std::nullopt, ter(tecFROZEN));
-            ammAlice.deposit(
-                carol,
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-        });
+        testAMM(
+            [&](AMM& ammAlice, Env& env) {
+                env(trust(gw, carol["USD"](0), tfSetFreeze));
+                env.close();
+                if (!features[featureAMMClawback])
+                    // Can deposit non-frozen token if AMMClawback is not
+                    // enabled
+                    ammAlice.deposit(carol, XRP(100));
+                else
+                    // Cannot deposit non-frozen token if the other token is
+                    // frozen when AMMClawback is enabled
+                    ammAlice.deposit(
+                        carol,
+                        XRP(100),
+                        std::nullopt,
+                        std::nullopt,
+                        std::nullopt,
+                        ter(tecFROZEN));
+
+                ammAlice.deposit(
+                    carol,
+                    1'000'000,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                env(trust(gw, carol["USD"](0), tfClearFreeze));
+                // Individually frozen AMM
+                env(trust(
+                    gw,
+                    STAmount{
+                        Issue{gw["USD"].currency, ammAlice.ammAccount()}, 0},
+                    tfSetFreeze));
+                env.close();
+                // Can deposit non-frozen token
+                ammAlice.deposit(carol, XRP(100));
+                ammAlice.deposit(
+                    carol,
+                    1'000'000,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+            },
+            std::nullopt,
+            0,
+            std::nullopt,
+            {features});
 
         // Individually frozen (AMM) account with IOU/IOU AMM
         testAMM(
@@ -6947,7 +6974,8 @@ private:
         FeatureBitset const all{jtx::supported_amendments()};
         testInvalidInstance();
         testInstanceCreate();
-        testInvalidDeposit();
+        testInvalidDeposit(all);
+        testInvalidDeposit(all - featureAMMClawback);
         testDeposit();
         testInvalidWithdraw();
         testWithdraw();
@@ -6986,9 +7014,11 @@ private:
         testFixAMMOfferBlockedByLOB(all);
         testFixAMMOfferBlockedByLOB(all - fixAMMv1_1);
         testLPTokenBalance(all);
-        testLPTokenBalance(all - fixAMMv1_1);
+        testLPTokenBalance(all - featureAMMClawback);
+        testLPTokenBalance(all - fixAMMv1_1 - featureAMMClawback);
         testAMMDepositWithFrozenAssets(all);
         testAMMDepositWithFrozenAssets(all - featureAMMClawback);
+        testAMMDepositWithFrozenAssets(all - fixAMMv1_1 - featureAMMClawback);
     }
 };
 
