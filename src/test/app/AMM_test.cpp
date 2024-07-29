@@ -6928,9 +6928,11 @@ private:
         testFixAMMOfferBlockedByLOB(all);
         testFixAMMOfferBlockedByLOB(all - fixAMMv1_1);
         testLPTokenBalance(all);
-        testLPTokenBalance(all - fixAMMv1_1);
+        testLPTokenBalance(all - featureAMMClawback);
+        testLPTokenBalance(all - fixAMMv1_1 - featureAMMClawback);
         testAMMClawback(all);
         testAMMClawback(all - featureAMMClawback);
+        testAMMClawback(all - fixAMMv1_1 - featureAMMClawback);
     }
 };
 
