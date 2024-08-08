@@ -58,10 +58,13 @@ AMMClawback::preflight(PreflightContext const& ctx)
     std::optional<STAmount> const clawAmount = ctx.tx[~sfAmount];
     auto const asset = ctx.tx[sfAsset];
 
+    if (isXRP(asset))
+        return temMALFORMED;
+
     if (asset.account != issuer)
     {
-        JLOG(ctx.j.trace()) << "AMMClawback: Amount's issuer subfield should "
-                               "be the same as Account field.";
+        JLOG(ctx.j.trace()) << "AMMClawback: Asset's account does not "
+                               "match Account field.";
         return temBAD_ASSET_ISSUER;
     }
 
@@ -72,12 +75,8 @@ AMMClawback::preflight(PreflightContext const& ctx)
         return temBAD_ASSET_AMOUNT;
     }
 
-    if (*clawAmount < beast::zero)
-    {
-        JLOG(ctx.j.trace())
-            << "AMMClawback: Amount being clawed back can't be less than zero.";
+    if (clawAmount && (*clawAmount < beast::zero || isXRP(*clawAmount)))
         return temBAD_AMOUNT;
-    }
 
     return preflight2(ctx);
 }
@@ -121,7 +120,7 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
     {
         JLOG(ctx.j.trace())
             << "AMMClawback: can not find AMM with ammID: " << ammID;
-        return terNO_AMM;
+        return tecINTERNAL;
     }
 
     STIssue const& asset = sleAMM->getFieldIssue(sfAsset);
@@ -218,9 +217,12 @@ AMMClawback::applyGuts(Sandbox& sb)
     STAmount amountWithdraw;
     std::optional<STAmount> amount2Withdraw;
 
+    auto const holdLPtokens = ammLPHolds(sb, *ammSle, holder, j_);
+    if (holdLPtokens == beast::zero)
+        return {tecINTERNAL, false};
+
     if (!clawAmount)
     {
-        auto const holdLPtokens = ammLPHolds(sb, *ammSle, holder, j_);
         std::tie(result, newLPTokenBalance, amountWithdraw, amount2Withdraw) =
             AMMWithdraw::equalWithdrawTokens(
                 sb,
@@ -234,7 +236,8 @@ AMMClawback::applyGuts(Sandbox& sb)
                 holdLPtokens,
                 tfee,
                 ctx_.journal,
-                ctx_.tx);
+                ctx_.tx,
+                true);
     }
     else
         std::tie(result, newLPTokenBalance, amountWithdraw, amount2Withdraw) =
@@ -315,7 +318,8 @@ AMMClawback::equalWithdrawMatchingOneAmount(
             holdLPtokens,
             tfee,
             ctx_.journal,
-            ctx_.tx);
+            ctx_.tx,
+            true);
 
     return withdraw(
         sb,
@@ -329,7 +333,8 @@ AMMClawback::equalWithdrawMatchingOneAmount(
         toSTAmount(lptAMMBalance.issue(), lptAMMBalance * frac),
         tfee,
         ctx_.journal,
-        ctx_.tx);
+        ctx_.tx,
+        false);
 }
 
 }  // namespace ripple

@@ -399,6 +399,7 @@ AMMWithdraw::applyGuts(Sandbox& sb)
         {
             TER result;
             STAmount newLPTokenBalance;
+            bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
             std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
                 equalWithdrawTokens(
                     sb,
@@ -412,7 +413,8 @@ AMMWithdraw::applyGuts(Sandbox& sb)
                     *lpTokensWithdraw,
                     tfee,
                     ctx_.journal,
-                    ctx_.tx);
+                    ctx_.tx,
+                    withdrawAll);
             return {result, newLPTokenBalance};
         }
         // should not happen.
@@ -466,7 +468,8 @@ AMMWithdraw::equalWithdrawTokens(
     STAmount const& lpTokensWithdraw,
     std::uint16_t tfee,
     beast::Journal const& journal,
-    STTx const& tx)
+    STTx const& tx,
+    bool withdrawAll)
 {
     try
     {
@@ -485,7 +488,8 @@ AMMWithdraw::equalWithdrawTokens(
                 lpTokensWithdraw,
                 tfee,
                 journal,
-                tx);
+                tx,
+                true);
         }
 
         auto const frac = divide(lpTokensWithdraw, lptAMMBalance, noIssue());
@@ -512,7 +516,8 @@ AMMWithdraw::equalWithdrawTokens(
             lpTokensWithdraw,
             tfee,
             journal,
-            tx);
+            tx,
+            withdrawAll);
     }
     // LCOV_EXCL_START
     catch (std::exception const& e)
@@ -565,6 +570,7 @@ AMMWithdraw::equalWithdrawLimit(
     STAmount newLPTokenBalance;
     auto frac = Number{amount} / amountBalance;
     auto const amount2Withdraw = amount2Balance * frac;
+    bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
     if (amount2Withdraw <= amount2)
     {
         std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
@@ -580,7 +586,8 @@ AMMWithdraw::equalWithdrawLimit(
                 toSTAmount(lptAMMBalance.issue(), lptAMMBalance * frac),
                 tfee,
                 ctx_.journal,
-                ctx_.tx);
+                ctx_.tx,
+                withdrawAll);
         return {result, newLPTokenBalance};
     }
 
@@ -599,7 +606,8 @@ AMMWithdraw::equalWithdrawLimit(
         toSTAmount(lptAMMBalance.issue(), lptAMMBalance * frac),
         tfee,
         ctx_.journal,
-        ctx_.tx);
+        ctx_.tx,
+        withdrawAll);
     return {result, newLPTokenBalance};
 }
 
@@ -624,6 +632,7 @@ AMMWithdraw::singleWithdraw(
 
     TER result;
     STAmount newLPTokenBalance;
+    bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
     std::tie(result, newLPTokenBalance, std::ignore, std::ignore) = withdraw(
         view,
         ammAccount,
@@ -636,7 +645,8 @@ AMMWithdraw::singleWithdraw(
         tokens,
         tfee,
         ctx_.journal,
-        ctx_.tx);
+        ctx_.tx,
+        withdrawAll);
 
     return {result, newLPTokenBalance};
 }
@@ -668,6 +678,7 @@ AMMWithdraw::singleWithdrawTokens(
     {
         TER result;
         STAmount newLPTokenBalance;
+        bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
         std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
             withdraw(
                 view,
@@ -681,7 +692,8 @@ AMMWithdraw::singleWithdrawTokens(
                 lpTokensWithdraw,
                 tfee,
                 ctx_.journal,
-                ctx_.tx);
+                ctx_.tx,
+                withdrawAll);
 
         return {result, newLPTokenBalance};
     }
@@ -740,6 +752,7 @@ AMMWithdraw::singleWithdrawEPrice(
     {
         TER result;
         STAmount newLPTokenBalance;
+        bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
         std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
             withdraw(
                 view,
@@ -753,7 +766,8 @@ AMMWithdraw::singleWithdrawEPrice(
                 toSTAmount(lptAMMBalance.issue(), tokens),
                 tfee,
                 ctx_.journal,
-                ctx_.tx);
+                ctx_.tx,
+                withdrawAll);
 
         return {result, newLPTokenBalance};
     }

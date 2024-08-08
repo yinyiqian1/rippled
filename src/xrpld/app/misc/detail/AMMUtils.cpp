@@ -445,7 +445,8 @@ withdraw(
     STAmount const& lpTokensWithdraw,
     std::uint16_t tfee,
     beast::Journal const& journal,
-    STTx const& tx)
+    STTx const& tx,
+    bool withdrawAll)
 {
     auto const lpTokens = ammLPHolds(view, ammSle, account, journal);
     auto const expected = ammHolds(
@@ -463,7 +464,7 @@ withdraw(
     auto const
         [amountWithdrawActual, amount2WithdrawActual, lpTokensWithdrawActual] =
             [&]() -> std::tuple<STAmount, std::optional<STAmount>, STAmount> {
-        if (!(tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll)))
+        if (!withdrawAll)
             return adjustAmountsByLPTokens(
                 amountBalance,
                 amountWithdraw,

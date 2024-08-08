@@ -106,7 +106,8 @@ public:
         STAmount const& lpTokensWithdraw,
         std::uint16_t tfee,
         beast::Journal const& journal,
-        STTx const& tx);
+        STTx const& tx,
+        bool withdrawAll);
 
 private:
     std::pair<TER, bool>
