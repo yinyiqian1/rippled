@@ -7051,6 +7051,9 @@ private:
         testAMMClawback(all);
         testAMMClawback(all - featureAMMClawback);
         testAMMClawback(all - fixAMMv1_1 - featureAMMClawback);
+        testAMMDepositWithFrozenAssets(all);
+        testAMMDepositWithFrozenAssets(all - featureAMMClawback);
+        testAMMDepositWithFrozenAssets(all - fixAMMv1_1 - featureAMMClawback);
     }
 };
 
