@@ -6871,15 +6871,26 @@ private:
             // Can't be cleared
             AMM amm2(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
         }
-        // If featureAMMClawback is enabled, AMMCreare is allowed for
-        // clawback-enabled issuer and clawback from the AMM Account is not
-        // allowed, which will return tecAMM_ACCOUNT
+        // If featureAMMClawback is enabled, AMMCreate is allowed for
+        // clawback-enabled issuer. Clawback from the AMM Account is not
+        // allowed, which will return tecAMM_ACCOUNT. We can only use
+        // AMMClawback transaction to claw back from AMM Account.
         else
         {
             AMM amm(env, gw, XRP(100), USD(100), ter(tesSUCCESS));
             AMM amm1(env, alice, USD(100), XRP(200), ter(tecDUPLICATE));
-            env(amm::clawback(gw, amm.ammAccount(), "USD", "10"),
-                ter(tecAMM_ACCOUNT));
+
+            // Construct the amount being clawed back using AMM account.
+            // By doing this, we make the clawback transaction's Amount field's
+            // subfield `issuer` to be the AMM account, which means
+            // we are clawing back from an AMM account. This should return an
+            // tecAMM_ACCOUNT error because regular Clawback transaction is not
+            // allowed for clawing back from an AMM account. Please notice the
+            // `issuer` subfield represents the account being clawed back, which
+            // is confusing.
+            Issue usd(USD.issue().currency, amm.ammAccount());
+            auto amount = amountFromString(usd, "10");
+            env(claw(gw, amount), ter(tecAMM_ACCOUNT));
         }
     }
 
