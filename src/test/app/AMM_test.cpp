@@ -416,21 +416,6 @@ private:
             AMM ammAlice1(
                 env, alice, USD(10'000), USD1(10'000), ter(terNO_RIPPLE));
         }
-
-        // Issuer has clawback enabled
-        {
-            Env env(*this);
-            env.fund(XRP(1'000), gw);
-            env(fset(gw, asfAllowTrustLineClawback));
-            fund(env, gw, {alice}, XRP(1'000), {USD(1'000)}, Fund::Acct);
-            env.close();
-            AMM amm(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
-            AMM amm1(env, alice, USD(100), XRP(100), ter(tecNO_PERMISSION));
-            env(fclear(gw, asfAllowTrustLineClawback));
-            env.close();
-            // Can't be cleared
-            AMM amm2(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
-        }
     }
 
     void
@@ -6890,6 +6875,53 @@ private:
     }
 
     void
+    testAMMClawback(FeatureBitset features)
+    {
+        testcase("test clawback from AMM account");
+        using namespace jtx;
+
+        // Issuer has clawback enabled
+        Env env(*this, features);
+        env.fund(XRP(1'000), gw);
+        env(fset(gw, asfAllowTrustLineClawback));
+        fund(env, gw, {alice}, XRP(1'000), {USD(1'000)}, Fund::Acct);
+        env.close();
+
+        // If featureAMMClawback is not enabled, AMMCreate is not allowed for
+        // clawback-enabled issuer
+        if (!features[featureAMMClawback])
+        {
+            AMM amm(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
+            AMM amm1(env, alice, USD(100), XRP(100), ter(tecNO_PERMISSION));
+            env(fclear(gw, asfAllowTrustLineClawback));
+            env.close();
+            // Can't be cleared
+            AMM amm2(env, gw, XRP(100), USD(100), ter(tecNO_PERMISSION));
+        }
+        // If featureAMMClawback is enabled, AMMCreate is allowed for
+        // clawback-enabled issuer. Clawback from the AMM Account is not
+        // allowed, which will return tecAMM_ACCOUNT. We can only use
+        // AMMClawback transaction to claw back from AMM Account.
+        else
+        {
+            AMM amm(env, gw, XRP(100), USD(100), ter(tesSUCCESS));
+            AMM amm1(env, alice, USD(100), XRP(200), ter(tecDUPLICATE));
+
+            // Construct the amount being clawed back using AMM account.
+            // By doing this, we make the clawback transaction's Amount field's
+            // subfield `issuer` to be the AMM account, which means
+            // we are clawing back from an AMM account. This should return an
+            // tecAMM_ACCOUNT error because regular Clawback transaction is not
+            // allowed for clawing back from an AMM account. Please notice the
+            // `issuer` subfield represents the account being clawed back, which
+            // is confusing.
+            Issue usd(USD.issue().currency, amm.ammAccount());
+            auto amount = amountFromString(usd, "10");
+            env(claw(gw, amount), ter(tecAMM_ACCOUNT));
+        }
+    }
+
+    void
     testAMMDepositWithFrozenAssets(FeatureBitset features)
     {
         testcase("test AMMDeposit with frozen assets");
@@ -7016,9 +7048,9 @@ private:
         testLPTokenBalance(all);
         testLPTokenBalance(all - featureAMMClawback);
         testLPTokenBalance(all - fixAMMv1_1 - featureAMMClawback);
-        testAMMDepositWithFrozenAssets(all);
-        testAMMDepositWithFrozenAssets(all - featureAMMClawback);
-        testAMMDepositWithFrozenAssets(all - fixAMMv1_1 - featureAMMClawback);
+        testAMMClawback(all);
+        testAMMClawback(all - featureAMMClawback);
+        testAMMClawback(all - fixAMMv1_1 - featureAMMClawback);
     }
 };
 
