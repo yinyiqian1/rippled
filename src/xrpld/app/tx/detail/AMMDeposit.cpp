@@ -252,7 +252,7 @@ AMMDeposit::preclaim(PreclaimContext const& ctx)
             if (!asset.has_value())
                 return temMALFORMED;
 
-            if (isIndividualFrozen(ctx.view, accountID, asset.value()))
+            if (isFrozen(ctx.view, accountID, asset.value()))
             {
                 JLOG(ctx.j.debug()) << "AMM Deposit: account is frozen, "
                                     << to_string(accountID) << " "

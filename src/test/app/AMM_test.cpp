@@ -854,27 +854,50 @@ private:
         });
 
         // Globally frozen asset
-        testAMM([&](AMM& ammAlice, Env& env) {
-            env(fset(gw, asfGlobalFreeze));
-            // Can deposit non-frozen token
-            ammAlice.deposit(carol, XRP(100));
-            ammAlice.deposit(
-                carol,
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-            ammAlice.deposit(
-                carol, 1'000'000, std::nullopt, std::nullopt, ter(tecFROZEN));
-            ammAlice.deposit(
-                carol,
-                XRP(100),
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-        });
+        testAMM(
+            [&](AMM& ammAlice, Env& env) {
+                env(fset(gw, asfGlobalFreeze));
+                if (!features[featureAMMClawback])
+                    // If the issuer set global freeze, the holder still can
+                    // deposit the other non-frozen token when AMMClawback is
+                    // not enabled.
+                    ammAlice.deposit(carol, XRP(100));
+                else
+                    // If the issuer set global freeze, the holder cannot
+                    // deposit the other non-frozen token when AMMClawback is
+                    // enabled.
+                    ammAlice.deposit(
+                        carol,
+                        XRP(100),
+                        std::nullopt,
+                        std::nullopt,
+                        std::nullopt,
+                        ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    1'000'000,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    XRP(100),
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+            },
+            std::nullopt,
+            0,
+            std::nullopt,
+            {features});
 
         // Individually frozen (AMM) account
         testAMM(
