@@ -812,6 +812,7 @@ trust(AccountID const& account, STAmount const& amount, std::uint32_t flags)
     jv[jss::Flags] = flags;
     return jv;
 }
+
 Json::Value
 pay(Account const& account, AccountID const& to, STAmount const& amount)
 {
