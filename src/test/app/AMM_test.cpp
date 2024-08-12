@@ -419,7 +419,7 @@ private:
     }
 
     void
-    testInvalidDeposit()
+    testInvalidDeposit(FeatureBitset features)
     {
         testcase("Invalid Deposit");
 
@@ -854,62 +854,112 @@ private:
         });
 
         // Globally frozen asset
-        testAMM([&](AMM& ammAlice, Env& env) {
-            env(fset(gw, asfGlobalFreeze));
-            // Can deposit non-frozen token
-            ammAlice.deposit(carol, XRP(100));
-            ammAlice.deposit(
-                carol,
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-            ammAlice.deposit(
-                carol, 1'000'000, std::nullopt, std::nullopt, ter(tecFROZEN));
-            ammAlice.deposit(
-                carol,
-                XRP(100),
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-        });
+        testAMM(
+            [&](AMM& ammAlice, Env& env) {
+                env(fset(gw, asfGlobalFreeze));
+                if (!features[featureAMMClawback])
+                    // If the issuer set global freeze, the holder still can
+                    // deposit the other non-frozen token when AMMClawback is
+                    // not enabled.
+                    ammAlice.deposit(carol, XRP(100));
+                else
+                    // If the issuer set global freeze, the holder cannot
+                    // deposit the other non-frozen token when AMMClawback is
+                    // enabled.
+                    ammAlice.deposit(
+                        carol,
+                        XRP(100),
+                        std::nullopt,
+                        std::nullopt,
+                        std::nullopt,
+                        ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    1'000'000,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    XRP(100),
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+            },
+            std::nullopt,
+            0,
+            std::nullopt,
+            {features});
 
         // Individually frozen (AMM) account
-        testAMM([&](AMM& ammAlice, Env& env) {
-            env(trust(gw, carol["USD"](0), tfSetFreeze));
-            env.close();
-            // Can deposit non-frozen token
-            ammAlice.deposit(carol, XRP(100));
-            ammAlice.deposit(
-                carol, 1'000'000, std::nullopt, std::nullopt, ter(tecFROZEN));
-            ammAlice.deposit(
-                carol,
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-            env(trust(gw, carol["USD"](0), tfClearFreeze));
-            // Individually frozen AMM
-            env(trust(
-                gw,
-                STAmount{Issue{gw["USD"].currency, ammAlice.ammAccount()}, 0},
-                tfSetFreeze));
-            env.close();
-            // Can deposit non-frozen token
-            ammAlice.deposit(carol, XRP(100));
-            ammAlice.deposit(
-                carol, 1'000'000, std::nullopt, std::nullopt, ter(tecFROZEN));
-            ammAlice.deposit(
-                carol,
-                USD(100),
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                ter(tecFROZEN));
-        });
+        testAMM(
+            [&](AMM& ammAlice, Env& env) {
+                env(trust(gw, carol["USD"](0), tfSetFreeze));
+                env.close();
+                if (!features[featureAMMClawback])
+                    // Can deposit non-frozen token if AMMClawback is not
+                    // enabled
+                    ammAlice.deposit(carol, XRP(100));
+                else
+                    // Cannot deposit non-frozen token if the other token is
+                    // frozen when AMMClawback is enabled
+                    ammAlice.deposit(
+                        carol,
+                        XRP(100),
+                        std::nullopt,
+                        std::nullopt,
+                        std::nullopt,
+                        ter(tecFROZEN));
+
+                ammAlice.deposit(
+                    carol,
+                    1'000'000,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                env(trust(gw, carol["USD"](0), tfClearFreeze));
+                // Individually frozen AMM
+                env(trust(
+                    gw,
+                    STAmount{
+                        Issue{gw["USD"].currency, ammAlice.ammAccount()}, 0},
+                    tfSetFreeze));
+                env.close();
+                // Can deposit non-frozen token
+                ammAlice.deposit(carol, XRP(100));
+                ammAlice.deposit(
+                    carol,
+                    1'000'000,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+                ammAlice.deposit(
+                    carol,
+                    USD(100),
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    ter(tecFROZEN));
+            },
+            std::nullopt,
+            0,
+            std::nullopt,
+            {features});
 
         // Individually frozen (AMM) account with IOU/IOU AMM
         testAMM(
@@ -6895,12 +6945,92 @@ private:
     }
 
     void
+    testAMMDepositWithFrozenAssets(FeatureBitset features)
+    {
+        testcase("test AMMDeposit with frozen assets");
+        using namespace jtx;
+
+        // This lambda function is used to create trustlines
+        // between gw and alice, and create and return an AMM account.
+        auto setupAMM = [&](Env& env) -> AMM* {
+            env.fund(XRP(1'000), gw);
+            fund(env, gw, {alice}, XRP(1'000), {USD(1'000)}, Fund::Acct);
+            env.close();
+            AMM* amm = new AMM(env, alice, XRP(100), USD(100), ter(tesSUCCESS));
+            env(trust(gw, alice["USD"](0), tfSetFreeze));
+            return amm;
+        };
+
+        {
+            // Deposit two assets, one of which is frozen,
+            // then we should get tecFROZEN error.
+            Env env(*this, features);
+            auto amm = setupAMM(env);
+            amm->deposit(
+                alice,
+                USD(100),
+                XRP(100),
+                std::nullopt,
+                tfTwoAsset,
+                ter(tecFROZEN));
+            delete amm;
+        }
+
+        {
+            // Deposit one asset, which is the frozen token,
+            // then we should get tecFROZEN error.
+            Env env(*this, features);
+            auto amm = setupAMM(env);
+            amm->deposit(
+                alice,
+                USD(100),
+                std::nullopt,
+                std::nullopt,
+                tfSingleAsset,
+                ter(tecFROZEN));
+            delete amm;
+        }
+
+        if (features[featureAMMClawback])
+        {
+            // Deposit one asset which is not the frozen token,
+            // but the other asset is frozen. We should get tecFROZEN error
+            // when feature AMMClawback is enabled.
+            Env env(*this, features);
+            auto amm = setupAMM(env);
+            amm->deposit(
+                alice,
+                XRP(100),
+                std::nullopt,
+                std::nullopt,
+                tfSingleAsset,
+                ter(tecFROZEN));
+        }
+        else
+        {
+            // Deposit one asset which is not the frozen token,
+            // but the other asset is frozen. We will get tecSUCCESS
+            // when feature AMMClawback is not enabled.
+            Env env(*this, features);
+            auto amm = setupAMM(env);
+            amm->deposit(
+                alice,
+                XRP(100),
+                std::nullopt,
+                std::nullopt,
+                tfSingleAsset,
+                ter(tesSUCCESS));
+        }
+    }
+
+    void
     run() override
     {
         FeatureBitset const all{jtx::supported_amendments()};
         testInvalidInstance();
         testInstanceCreate();
-        testInvalidDeposit();
+        testInvalidDeposit(all);
+        testInvalidDeposit(all - featureAMMClawback);
         testDeposit();
         testInvalidWithdraw();
         testWithdraw();
@@ -6944,6 +7074,9 @@ private:
         testAMMClawback(all);
         testAMMClawback(all - featureAMMClawback);
         testAMMClawback(all - fixAMMv1_1 - featureAMMClawback);
+        testAMMDepositWithFrozenAssets(all);
+        testAMMDepositWithFrozenAssets(all - featureAMMClawback);
+        testAMMDepositWithFrozenAssets(all - fixAMMv1_1 - featureAMMClawback);
     }
 };
 
