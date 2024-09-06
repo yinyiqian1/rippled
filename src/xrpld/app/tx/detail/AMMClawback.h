@@ -23,7 +23,7 @@
 #include <xrpld/app/tx/detail/Transactor.h>
 
 namespace ripple {
-
+class Sandbox;
 class AMMClawback : public Transactor
 {
 public:
@@ -41,6 +41,41 @@ public:
 
     TER
     doApply() override;
+
+private:
+    std::pair<TER, bool>
+    applyGuts(Sandbox& view);
+
+    /** Withdraw both assets by providing maximum amount of asset1,
+     * asset2's amount will be calculated according to the current proportion.
+     * @param view
+     * @param ammAccount
+     * @param amountBalance current AMM asset1 balance
+     * @param amount2Balance current AMM asset2 balance
+     * @param lptAMMBalance current AMM LPT balance
+     * @param amount asset1 withdraw amount
+     * @param tfee trading fee in basis points
+     * @return
+     */
+    std::tuple<TER, STAmount>
+    equalWithdrawMatchingOneAmount(
+        Sandbox& view,
+        SLE const& ammSle,
+        AccountID const& holder,
+        AccountID const& ammAccount,
+        STAmount const& amountBalance,
+        STAmount const& amount2Balance,
+        STAmount const& lptAMMBalance,
+        STAmount const& amount,
+        std::uint16_t tfee);
+
+    std::pair<TER, bool>
+    clawbackAll(
+        Sandbox& sb,
+        const std::shared_ptr<SLE> ammSle,
+        AccountID const& ammAccount,
+        AccountID const& issuer,
+        AccountID const& holder);
 };
 
 }  // namespace ripple
