@@ -911,7 +911,8 @@ ValidAMMClawback::finalize(
     {
         if (trustlinesChanged != 5)
         {
-            JLOG(j.fatal()) << "Invariant failed: the number of trustlines changed is not equal to five.";
+            JLOG(j.fatal()) << "Invariant failed: the number of trustlines "
+                               "changed is not equal to five.";
             return false;
         }
     }

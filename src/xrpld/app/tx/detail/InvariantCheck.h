@@ -449,7 +449,7 @@ public:
 };
 
 /**
- * @brief Invariant: make sure holder's balance is non-negative
+ * @brief Invariant: make sure five trustlines are affected by this transaction.
  */
 class ValidAMMClawback
 {
