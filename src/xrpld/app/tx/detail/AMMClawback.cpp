@@ -47,7 +47,7 @@ AMMClawback::preflight(PreflightContext const& ctx)
 
     AccountID const issuer = ctx.tx[sfAccount];
     AccountID const holder = ctx.tx[sfHolder];
-    
+
     if (issuer == holder)
     {
         JLOG(ctx.j.trace())
@@ -67,7 +67,8 @@ AMMClawback::preflight(PreflightContext const& ctx)
 
     if (clawAmount && clawAmount->issue() != asset)
     {
-        JLOG(ctx.j.trace()) << "AMMClawback: Amount's issuer/currency subfield does not match Asset field";
+        JLOG(ctx.j.trace()) << "AMMClawback: Amount's issuer/currency subfield "
+                               "does not match Asset field";
         return temBAD_ASSET_AMOUNT;
     }
 
@@ -110,14 +111,16 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
     auto const ammID = sleAMMAccount->getFieldH256(sfAMMID);
     if (!ammID)
     {
-        JLOG(ctx.j.trace()) << "AMMClawback: AMMAccount field is not an AMM account.";
+        JLOG(ctx.j.trace())
+            << "AMMClawback: AMMAccount field is not an AMM account.";
         return tecINTERNAL;
     }
 
     auto const sleAMM = ctx.view.read(keylet::amm(ammID));
     if (!sleAMM)
     {
-        JLOG(ctx.j.trace()) << "AMMClawback: can not find AMM with ammID: " << ammID;
+        JLOG(ctx.j.trace())
+            << "AMMClawback: can not find AMM with ammID: " << ammID;
         return tecINTERNAL;
     }
 
@@ -126,8 +129,8 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
 
     if (ctx.tx[sfAsset] != asset && ctx.tx[sfAsset] != asset2)
     {
-        JLOG(ctx.j.trace())
-            << "AMMClawback: Asset being clawed back does not match either asset in the AMM pool.";
+        JLOG(ctx.j.trace()) << "AMMClawback: Asset being clawed back does not "
+                               "match either asset in the AMM pool.";
         return tecNO_PERMISSION;
     }
 
@@ -137,7 +140,8 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
         if (asset.issue().account != asset2.issue().account)
         {
             JLOG(ctx.j.trace())
-                << "AMMClawback: tfClawTwoAssets can only be enabled when two assets in the AMM pool are both issued by the issuer";
+                << "AMMClawback: tfClawTwoAssets can only be enabled when two "
+                   "assets in the AMM pool are both issued by the issuer";
             return temMALFORMED;
         }
     }
@@ -218,31 +222,32 @@ AMMClawback::applyGuts(Sandbox& sb)
     {
         auto const holdLPtokens = ammLPHolds(sb, *ammSle, holder, j_);
         std::tie(result, newLPTokenBalance, amountWithdraw, amount2Withdraw) =
-        AMMWithdraw::equalWithdrawTokens(
-            sb,
-            *ammSle,
-            holder,
-            ammAccount,
-            amountBalance,
-            amount2Balance,
-            lptAMMBalance,
-            holdLPtokens,
-            holdLPtokens,
-            tfee,
-            ctx_.journal,
-            ctx_.tx);
+            AMMWithdraw::equalWithdrawTokens(
+                sb,
+                *ammSle,
+                holder,
+                ammAccount,
+                amountBalance,
+                amount2Balance,
+                lptAMMBalance,
+                holdLPtokens,
+                holdLPtokens,
+                tfee,
+                ctx_.journal,
+                ctx_.tx);
     }
     else
-        std::tie(result, newLPTokenBalance, amountWithdraw, amount2Withdraw) = equalWithdrawMatchingOneAmount(
-        sb,
-        *ammSle,
-        holder,
-        ammAccount,
-        amountBalance,
-        amount2Balance,
-        lptAMMBalance,
-        *clawAmount,
-        tfee);
+        std::tie(result, newLPTokenBalance, amountWithdraw, amount2Withdraw) =
+            equalWithdrawMatchingOneAmount(
+                sb,
+                *ammSle,
+                holder,
+                ammAccount,
+                amountBalance,
+                amount2Balance,
+                lptAMMBalance,
+                *clawAmount,
+                tfee);
 
     if (result != tesSUCCESS)
         return {result, false};
@@ -264,10 +269,12 @@ AMMClawback::applyGuts(Sandbox& sb)
     auto const flags = ctx_.tx.getFlags();
     if (flags & tfClawTwoAssets)
     {
-        // if the issuer issues both assets and sets flag tfClawTwoAssets, we will claw
-        // the paired asset as well. We already checked if tfClawTwoAssets is enabled,
-        // the two assets have to be issued by the same issuer.
-        auto const ter = rippleCredit(sb, holder, issuer, *amount2Withdraw, true, j_);
+        // if the issuer issues both assets and sets flag tfClawTwoAssets, we
+        // will claw the paired asset as well. We already checked if
+        // tfClawTwoAssets is enabled, the two assets have to be issued by the
+        // same issuer.
+        auto const ter =
+            rippleCredit(sb, holder, issuer, *amount2Withdraw, true, j_);
         if (ter != tesSUCCESS)
             return {ter, false};
     }
@@ -290,7 +297,8 @@ AMMClawback::equalWithdrawMatchingOneAmount(
     auto frac = Number{amount} / amountBalance;
     auto const amount2Withdraw = amount2Balance * frac;
 
-    auto const lpTokensWithdraw = toSTAmount(lptAMMBalance.issue(), lptAMMBalance * frac);
+    auto const lpTokensWithdraw =
+        toSTAmount(lptAMMBalance.issue(), lptAMMBalance * frac);
     auto const holdLPtokens = ammLPHolds(sb, ammSle, holder, j_);
     if (lpTokensWithdraw > holdLPtokens)
         // if lptoken balance less than what the issuer intended to clawback,
