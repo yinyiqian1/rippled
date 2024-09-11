@@ -386,6 +386,7 @@ TxFormats::TxFormats()
         {
             {sfHolder, soeREQUIRED},
             {sfAMMAccount, soeREQUIRED},
+            {sfAsset, soeREQUIRED},
             {sfAmount, soeOPTIONAL},
         },
         commonFields);

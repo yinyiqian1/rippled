@@ -49,7 +49,7 @@ private:
     /** Withdraw both assets by providing maximum amount of asset1,
      * asset2's amount will be calculated according to the current proportion.
      * @param view
-     * @param ammAccount
+     * @param ammAccount current AMM account
      * @param amountBalance current AMM asset1 balance
      * @param amount2Balance current AMM asset2 balance
      * @param lptAMMBalance current AMM LPT balance
@@ -57,7 +57,7 @@ private:
      * @param tfee trading fee in basis points
      * @return
      */
-    std::tuple<TER, STAmount>
+    std::tuple<TER, STAmount, STAmount, std::optional<STAmount>>
     equalWithdrawMatchingOneAmount(
         Sandbox& view,
         SLE const& ammSle,
@@ -68,14 +68,6 @@ private:
         STAmount const& lptAMMBalance,
         STAmount const& amount,
         std::uint16_t tfee);
-
-    std::pair<TER, bool>
-    clawbackAll(
-        Sandbox& sb,
-        const std::shared_ptr<SLE> ammSle,
-        AccountID const& ammAccount,
-        AccountID const& issuer,
-        AccountID const& holder);
 };
 
 }  // namespace ripple

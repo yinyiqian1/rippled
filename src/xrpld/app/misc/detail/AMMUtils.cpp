@@ -447,16 +447,6 @@ withdraw(
     beast::Journal const& journal,
     STTx const& tx)
 {
-    std::cout << "amountWithdraw: " << amountWithdraw.issue().currency << " "
-              << amountWithdraw.issue().account << std::endl;
-    std::cout << amountWithdraw.mantissa() << "  " << amountWithdraw.exponent()
-              << std::endl;
-
-    std::cout << "amount2Withdraw: " << amount2Withdraw->issue().currency << " "
-              << amount2Withdraw->issue().account << std::endl;
-    std::cout << amount2Withdraw->mantissa() << "  "
-              << amount2Withdraw->exponent() << std::endl;
-
     auto const lpTokens = ammLPHolds(view, ammSle, account, journal);
     auto const expected = ammHolds(
         view,
