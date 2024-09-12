@@ -36,7 +36,7 @@ namespace ripple {
 NotTEC
 AMMClawback::preflight(PreflightContext const& ctx)
 {
-    if (!ctx.rules.enabled(featureClawback))
+    if (!ctx.rules.enabled(featureAMMClawback))
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
