@@ -142,7 +142,7 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
             JLOG(ctx.j.trace())
                 << "AMMClawback: tfClawTwoAssets can only be enabled when two "
                    "assets in the AMM pool are both issued by the issuer";
-            return temMALFORMED;
+            return tecNO_PERMISSION;
         }
     }
 
