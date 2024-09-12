@@ -113,7 +113,7 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
     {
         JLOG(ctx.j.trace())
             << "AMMClawback: AMMAccount field is not an AMM account.";
-        return tecINTERNAL;
+        return terNO_AMM;
     }
 
     auto const sleAMM = ctx.view.read(keylet::amm(ammID));
@@ -121,7 +121,7 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
     {
         JLOG(ctx.j.trace())
             << "AMMClawback: can not find AMM with ammID: " << ammID;
-        return tecINTERNAL;
+        return terNO_AMM;
     }
 
     STIssue const& asset = sleAMM->getFieldIssue(sfAsset);
