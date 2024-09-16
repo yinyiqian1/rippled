@@ -438,6 +438,9 @@ trust(
     std::uint32_t flags = 0);
 Json::Value
 pay(Account const& account, AccountID const& to, STAmount const& amount);
+
+// Json::Value
+// ammClawback(AccountID const& issuer, AccountID const& holder, Issue const& asset, std::optional<STAmount> const& amount, AccountID const& ammAccount);
 }  // namespace amm
 
 }  // namespace jtx

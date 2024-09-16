@@ -909,10 +909,12 @@ ValidAMMClawback::finalize(
 
     if (result == tesSUCCESS)
     {
-        if (trustlinesChanged != 5)
+        // if the paired token is XRP, 3 trustlines will be changed.
+        // Otherwise, 5 trustlines will be changed.
+        if (trustlinesChanged != 5 && trustlinesChanged != 3)
         {
             JLOG(j.fatal()) << "Invariant failed: the number of trustlines "
-                               "changed is not equal to five.";
+                               "changed is not equal to five or three.";
             return false;
         }
     }

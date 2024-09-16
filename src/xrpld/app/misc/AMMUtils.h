@@ -136,7 +136,8 @@ withdraw(
     STAmount const& lpTokensWithdraw,
     std::uint16_t tfee,
     beast::Journal const& journal,
-    STTx const& tx);
+    STTx const& tx,
+    bool withdrawAll);
 
 std::pair<TER, bool>
 deleteAMMAccountIfEmpty(

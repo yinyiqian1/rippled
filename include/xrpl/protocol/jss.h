@@ -91,6 +91,7 @@ JSS(EscrowFinish);         // transaction type.
 JSS(Fee);                  // in/out: TransactionSign; field.
 JSS(FeeSettings);          // ledger type.
 JSS(Flags);                // in/out: TransactionSign; field.
+JSS(Holder);               // field.
 JSS(incomplete_shards);    // out: OverlayImpl, PeerImp
 JSS(Invalid);              //
 JSS(LastLedgerSequence);   // in: TransactionSign; field
