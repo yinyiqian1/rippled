@@ -342,11 +342,12 @@ AccountRootsNotDeleted::finalize(
         return false;
     }
 
-    // A successful AMMWithdraw MAY delete one account root
+    // A successful AMMWithdraw/AMMClawback MAY delete one account root
     // when the total AMM LP Tokens balance goes to 0. Not every AMM withdraw
     // deletes the AMM account, accountsDeleted_ is set if it is deleted.
-    if (tx.getTxnType() == ttAMM_WITHDRAW && result == tesSUCCESS &&
-        accountsDeleted_ == 1)
+    if ((tx.getTxnType() == ttAMM_WITHDRAW ||
+         tx.getTxnType() == ttAMM_CLAWBACK) &&
+        result == tesSUCCESS && accountsDeleted_ == 1)
         return true;
 
     if (accountsDeleted_ == 0)
@@ -869,6 +870,49 @@ ValidClawback::finalize(
         {
             JLOG(j.fatal())
                 << "Invariant failed: trustline balance is negative";
+            return false;
+        }
+    }
+    else
+    {
+        if (trustlinesChanged != 0)
+        {
+            JLOG(j.fatal()) << "Invariant failed: some trustlines were changed "
+                               "despite failure of the transaction.";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void
+ValidAMMClawback::visitEntry(
+    bool,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const&)
+{
+    if (before && before->getType() == ltRIPPLE_STATE)
+        trustlinesChanged++;
+}
+
+bool
+ValidAMMClawback::finalize(
+    STTx const& tx,
+    TER const result,
+    XRPAmount const,
+    ReadView const& view,
+    beast::Journal const& j)
+{
+    if (tx.getTxnType() != ttAMM_CLAWBACK)
+        return true;
+
+    if (result == tesSUCCESS)
+    {
+        if (trustlinesChanged != 5)
+        {
+            JLOG(j.fatal()) << "Invariant failed: the number of trustlines "
+                               "changed is not equal to five.";
             return false;
         }
     }

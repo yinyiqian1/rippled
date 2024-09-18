@@ -48,7 +48,9 @@ JSS(AccountDelete);        // transaction type.
 JSS(AccountRoot);          // ledger type.
 JSS(AccountSet);           // transaction type.
 JSS(AMM);                  // ledger type
+JSS(AMMAccount);           // field
 JSS(AMMBid);               // transaction type
+JSS(AMMClawback);          // transaction type.
 JSS(AMMID);                // field
 JSS(AMMCreate);            // transaction type
 JSS(AMMDeposit);           // transaction type
