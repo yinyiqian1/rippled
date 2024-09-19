@@ -931,47 +931,4 @@ ValidClawback::finalize(
     return true;
 }
 
-void
-ValidAMMClawback::visitEntry(
-    bool,
-    std::shared_ptr<SLE const> const& before,
-    std::shared_ptr<SLE const> const&)
-{
-    if (before && before->getType() == ltRIPPLE_STATE)
-        trustlinesChanged++;
-}
-
-bool
-ValidAMMClawback::finalize(
-    STTx const& tx,
-    TER const result,
-    XRPAmount const,
-    ReadView const& view,
-    beast::Journal const& j)
-{
-    if (tx.getTxnType() != ttAMM_CLAWBACK)
-        return true;
-
-    if (result == tesSUCCESS)
-    {
-        if (trustlinesChanged != 5)
-        {
-            JLOG(j.fatal()) << "Invariant failed: the number of trustlines "
-                               "changed is not equal to five.";
-            return false;
-        }
-    }
-    else
-    {
-        if (trustlinesChanged != 0)
-        {
-            JLOG(j.fatal()) << "Invariant failed: some trustlines were changed "
-                               "despite failure of the transaction.";
-            return false;
-        }
-    }
-
-    return true;
-}
-
 }  // namespace ripple
