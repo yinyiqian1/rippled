@@ -399,7 +399,8 @@ AMMWithdraw::applyGuts(Sandbox& sb)
         {
             TER result;
             STAmount newLPTokenBalance;
-            bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
+            bool withdrawAll =
+                ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
             std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
                 equalWithdrawTokens(
                     sb,
@@ -570,7 +571,8 @@ AMMWithdraw::equalWithdrawLimit(
     STAmount newLPTokenBalance;
     auto frac = Number{amount} / amountBalance;
     auto const amount2Withdraw = amount2Balance * frac;
-    bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
+    bool withdrawAll =
+        ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
     if (amount2Withdraw <= amount2)
     {
         std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
@@ -632,7 +634,8 @@ AMMWithdraw::singleWithdraw(
 
     TER result;
     STAmount newLPTokenBalance;
-    bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
+    bool withdrawAll =
+        ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
     std::tie(result, newLPTokenBalance, std::ignore, std::ignore) = withdraw(
         view,
         ammAccount,
@@ -678,7 +681,8 @@ AMMWithdraw::singleWithdrawTokens(
     {
         TER result;
         STAmount newLPTokenBalance;
-        bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
+        bool withdrawAll =
+            ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
         std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
             withdraw(
                 view,
@@ -752,7 +756,8 @@ AMMWithdraw::singleWithdrawEPrice(
     {
         TER result;
         STAmount newLPTokenBalance;
-        bool withdrawAll = ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
+        bool withdrawAll =
+            ctx_.tx[sfFlags] & (tfWithdrawAll | tfOneAssetWithdrawAll);
         std::tie(result, newLPTokenBalance, std::ignore, std::ignore) =
             withdraw(
                 view,

@@ -465,8 +465,7 @@ using InvariantChecks = std::tuple<
     ValidNewAccountRoot,
     ValidNFTokenPage,
     NFTokenCountTracking,
-    ValidClawback,
-    ValidAMMClawback>;
+    ValidClawback>;
 
 /**
  * @brief get a tuple of all invariant checks

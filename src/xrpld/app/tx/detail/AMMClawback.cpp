@@ -170,27 +170,20 @@ AMMClawback::applyGuts(Sandbox& sb)
     Issue const asset = ctx_.tx[sfAsset];
 
     auto const sleAMMAccount = ctx_.view().read(keylet::account(ammAccount));
+
+    // should not happen. checked in preclaim.
+    // LCOV_EXCL_START
     if (!sleAMMAccount)
-    {
-        JLOG(j_.trace()) << "AMMClawback: AMMAccount provided does not exist.";
         return {terNO_AMM, false};
-    }
 
     auto const ammID = sleAMMAccount->getFieldH256(sfAMMID);
     if (!ammID)
-    {
-        JLOG(j_.trace())
-            << "AMMClawback: AMMAccount field is not an AMM account.";
         return {tecINTERNAL, false};
-    }
 
     auto ammSle = sb.peek(keylet::amm(ammID));
     if (!ammSle)
-    {
-        JLOG(j_.trace()) << "AMMClawback: can not find AMM with ammID: "
-                         << ammID;
         return {tecINTERNAL, false};
-    }
+    // LCOV_EXCL_STOP
 
     auto const tfee = getTradingFee(ctx_.view(), *ammSle, ammAccount);
     Issue const& issue1 = ammSle->getFieldIssue(sfAsset).issue();

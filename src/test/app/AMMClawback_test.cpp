@@ -293,6 +293,73 @@ class AMMClawback_test : public jtx::AMMTest
                     tfClawTwoAssets),
                 ter(tecNO_PERMISSION));
         }
+
+        // test clawing back xrp will return error
+        {
+            Env env(*this, features);
+            Account gw{"gateway"};
+            Account alice{"alice"};
+            env.fund(XRP(1000000), gw, alice);
+            env.close();
+
+            // gateway sets asfAllowTrustLineClawback
+            env(fset(gw, asfAllowTrustLineClawback));
+            env.close();
+            env.require(flags(gw, asfAllowTrustLineClawback));
+
+            // gateway issues 3000 USD to Alice
+            auto const USD = gw["USD"];
+            env.trust(USD(100000), alice);
+            env(pay(gw, alice, USD(3000)));
+            env.close();
+
+            // Alice creates AMM pool of XRP/USD
+            AMM amm(env, alice, XRP(1000), USD(2000), ter(tesSUCCESS));
+            env.close();
+
+            // clawback XRP is prohibited.
+            env(ammClawback(
+                    gw,
+                    alice,
+                    XRP,
+                    std::nullopt,
+                    amm.ammAccount(),
+                    std::nullopt),
+                ter(temMALFORMED));
+        }
+    }
+
+    void
+    testFeatureDisabled(FeatureBitset features)
+    {
+        testcase("test featureAMMClawback is not enabled.");
+        using namespace jtx;
+        if (!features[featureAMMClawback])
+        {
+            Env env(*this, features);
+            Account gw{"gateway"};
+            Account alice{"alice"};
+            env.fund(XRP(1000000), gw, alice);
+            env.close();
+
+            // gateway sets asfAllowTrustLineClawback
+            env(fset(gw, asfAllowTrustLineClawback));
+            env.close();
+            env.require(flags(gw, asfAllowTrustLineClawback));
+
+            // gateway issues 3000 USD to Alice
+            auto const USD = gw["USD"];
+            env.trust(USD(100000), alice);
+            env(pay(gw, alice, USD(3000)));
+            env.close();
+
+            // When featureAMMClawback is not enabled, AMMClawback is disabled.
+            // Because when featureAMMClawback is disabled, we can not create
+            // amm account, use gw account for now for testing purpose.
+            env(ammClawback(
+                    gw, alice, XRP, std::nullopt, gw.id(), std::nullopt),
+                ter(temDISABLED));
+        }
     }
 
     void
@@ -1469,7 +1536,9 @@ class AMMClawback_test : public jtx::AMMTest
     void
     testNotHoldingLptoken(FeatureBitset features)
     {
-        testcase("test AMMClawback from account which does not own any lptoken in the pool");
+        testcase(
+            "test AMMClawback from account which does not own any lptoken in "
+            "the pool");
         using namespace jtx;
 
         Env env(*this, features);
@@ -1503,6 +1572,7 @@ public:
     {
         FeatureBitset const all{jtx::supported_amendments()};
         testInvalidRequest(all);
+        testFeatureDisabled(all - featureAMMClawback);
         testAMMClawbackSpecificAmount(all);
         testAMMClawbackExceedBalance(all);
         testAMMClawbackAll(all);

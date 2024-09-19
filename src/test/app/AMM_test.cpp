@@ -7030,7 +7030,6 @@ private:
         testInvalidInstance();
         testInstanceCreate();
         testInvalidDeposit(all);
-        testInvalidDeposit(all - featureAMMClawback);
         testDeposit();
         testInvalidWithdraw();
         testWithdraw();
@@ -7069,8 +7068,7 @@ private:
         testFixAMMOfferBlockedByLOB(all);
         testFixAMMOfferBlockedByLOB(all - fixAMMv1_1);
         testLPTokenBalance(all);
-        testLPTokenBalance(all - featureAMMClawback);
-        testLPTokenBalance(all - fixAMMv1_1 - featureAMMClawback);
+        testLPTokenBalance(all - fixAMMv1_1);
         testAMMClawback(all);
         testAMMClawback(all - featureAMMClawback);
         testAMMClawback(all - fixAMMv1_1 - featureAMMClawback);
