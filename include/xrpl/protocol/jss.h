@@ -92,7 +92,6 @@ JSS(Fee);                  // in/out: TransactionSign; field.
 JSS(FeeSettings);          // ledger type.
 JSS(Flags);                // in/out: TransactionSign; field.
 JSS(Holder);               // field.
-JSS(incomplete_shards);    // out: OverlayImpl, PeerImp
 JSS(Invalid);              //
 JSS(LastLedgerSequence);   // in: TransactionSign; field
 JSS(LastUpdateTime);       // field.
@@ -108,6 +107,7 @@ JSS(NFTokenAcceptOffer);   // transaction type.
 JSS(NFTokenCancelOffer);   // transaction type.
 JSS(NFTokenCreateOffer);   // transaction type.
 JSS(NFTokenPage);          // ledger type.
+JSS(LedgerStateFix);       // transaction type.
 JSS(LPTokenOut);           // in: AMM Liquidity Provider deposit tokens
 JSS(LPTokenIn);            // in: AMM Liquidity Provider withdraw tokens
 JSS(LPToken);              // out: AMM Liquidity Provider tokens info
@@ -263,7 +263,6 @@ JSS(code);                        // out: errors
 JSS(command);                     // in: RPCHandler
 JSS(complete);                    // out: NetworkOPs, InboundLedger
 JSS(complete_ledgers);            // out: NetworkOPs, PeerImp
-JSS(complete_shards);             // out: OverlayImpl, PeerImp
 JSS(consensus);                   // out: NetworkOPs, LedgerConsensus
 JSS(converge_time);               // out: NetworkOPs
 JSS(converge_time_s);             // out: NetworkOPs
@@ -273,8 +272,6 @@ JSS(counters);                    // in/out: retrieve counters
 JSS(ctid);                        // in/out: Tx RPC
 JSS(currency_a);                  // out: BookChanges
 JSS(currency_b);                  // out: BookChanges
-JSS(currentShard);                // out: NodeToShardStatus
-JSS(currentShardIndex);           // out: NodeToShardStatus
 JSS(currency);                    // in: paths/PathRequest, STAmount
                                   // out: STPathSet, STAmount,
                                   //      AccountLines
@@ -347,8 +344,6 @@ JSS(fetch_pack);            // out: NetworkOPs
 JSS(FIELDS);                // out: RPC server_definitions
                             // matches definitions.json format
 JSS(first);                 // out: rpc/Version
-JSS(firstSequence);         // out: NodeToShardStatus
-JSS(firstShardIndex);       // out: NodeToShardStatus
 JSS(finished);
 JSS(fix_txns);              // in: LedgerCleaner
 JSS(flags);                 // out: AccountOffers,
@@ -379,7 +374,7 @@ JSS(ident);                 // in: AccountCurrencies, AccountInfo,
 JSS(ignore_default);        // in: AccountLines
 JSS(inLedger);              // out: tx/Transaction
 JSS(inbound);               // out: PeerImp
-JSS(index);                 // in: LedgerEntry, DownloadShard
+JSS(index);                 // in: LedgerEntry
                             // out: STLedgerEntry,
                             //      LedgerEntry, TxHistory, LedgerData
 JSS(info);                  // out: ServerInfo, ConsensusInfo, FetchInfo
@@ -409,8 +404,6 @@ JSS(key);                         // out
 JSS(key_type);                    // in/out: WalletPropose, TransactionSign
 JSS(latency);                     // out: PeerImp
 JSS(last);                        // out: RPCVersion
-JSS(lastSequence);                // out: NodeToShardStatus
-JSS(lastShardIndex);              // out: NodeToShardStatus
 JSS(last_close);                  // out: NetworkOPs
 JSS(last_refresh_time);           // out: ValidatorSite
 JSS(last_refresh_status);         // out: ValidatorSite
@@ -634,7 +627,6 @@ JSS(server_status);             // out: NetworkOPs
 JSS(server_version);            // out: NetworkOPs
 JSS(settle_delay);              // out: AccountChannels
 JSS(severity);                  // in: LogLevel
-JSS(shards);                    // in/out: GetCounts, DownloadShard
 JSS(signature);                 // out: NetworkOPs, ChannelAuthorize
 JSS(signature_verified);        // out: ChannelVerify
 JSS(signing_key);               // out: NetworkOPs
@@ -658,7 +650,6 @@ JSS(state_now);             // in: Subscribe
 JSS(status);                // error
 JSS(stop);                  // in: LedgerCleaner
 JSS(stop_history_tx_only);  // in: Unsubscribe, stop history tx stream
-JSS(storedSeqs);            // out: NodeToShardStatus
 JSS(streams);               // in: Subscribe, Unsubscribe
 JSS(strict);                // in: AccountCurrencies, AccountInfo
 JSS(sub_index);             // in: LedgerEntry
