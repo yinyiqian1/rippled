@@ -217,9 +217,12 @@ AMMClawback::applyGuts(Sandbox& sb)
     STAmount amountWithdraw;
     std::optional<STAmount> amount2Withdraw;
 
+    auto const holdLPtokens = ammLPHolds(sb, *ammSle, holder, j_);
+    if (holdLPtokens == beast::zero)
+        return {tecINTERNAL, false};
+
     if (!clawAmount)
     {
-        auto const holdLPtokens = ammLPHolds(sb, *ammSle, holder, j_);
         std::tie(result, newLPTokenBalance, amountWithdraw, amount2Withdraw) =
             AMMWithdraw::equalWithdrawTokens(
                 sb,

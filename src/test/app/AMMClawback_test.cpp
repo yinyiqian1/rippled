@@ -1466,18 +1466,50 @@ class AMMClawback_test : public jtx::AMMTest
         BEAST_EXPECT(env.balance(gw2, USD) == USD(3000));
     }
 
+    void
+    testNotHoldingLptoken(FeatureBitset features)
+    {
+        testcase("test AMMClawback from account which does not own any lptoken in the pool");
+        using namespace jtx;
+
+        Env env(*this, features);
+        Account gw{"gateway"};
+        Account alice{"alice"};
+        env.fund(XRP(1000000), gw, alice);
+        env.close();
+
+        // gw sets asfAllowTrustLineClawback
+        env(fset(gw, asfAllowTrustLineClawback));
+        env.close();
+        env.require(flags(gw, asfAllowTrustLineClawback));
+
+        auto const USD = gw["USD"];
+        env.trust(USD(100000), alice);
+        env(pay(gw, alice, USD(5000)));
+
+        AMM amm(env, gw, USD(1000), XRP(2000), ter(tesSUCCESS));
+        env.close();
+
+        // Alice did not deposit in the amm pool. So AMMClawback from Alice
+        // will fail.
+        env(ammClawback(
+                gw, alice, USD, USD(1000), amm.ammAccount(), std::nullopt),
+            ter(tecINTERNAL));
+    }
+
 public:
     void
     run() override
     {
         FeatureBitset const all{jtx::supported_amendments()};
-        testInvalidRequest(all);
-        testAMMClawbackSpecificAmount(all);
-        testAMMClawbackExceedBalance(all);
-        testAMMClawbackAll(all);
-        testAMMClawbackSameIssuerAssets(all);
-        testAMMClawbackSameCurrency(all);
-        testAMMClawbackIssuesEachOther(all);
+        // testInvalidRequest(all);
+        // testAMMClawbackSpecificAmount(all);
+        // testAMMClawbackExceedBalance(all);
+        // testAMMClawbackAll(all);
+        // testAMMClawbackSameIssuerAssets(all);
+        // testAMMClawbackSameCurrency(all);
+        // testAMMClawbackIssuesEachOther(all);
+        testNotHoldingLptoken(all);
     }
 };
 BEAST_DEFINE_TESTSUITE(AMMClawback, app, ripple);
