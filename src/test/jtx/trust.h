@@ -46,8 +46,6 @@ claw(Account const& account, STAmount const& amount);
 Json::Value
 ammClawback(Account const& issuer, Account const& holder, Issue const& asset, std::optional<STAmount> const& amount, AccountID const& ammAccount, std::optional<std::uint32_t> flags);
 
-Json::Value
-ammClawback2(Account const& issuer, Account const& holder, Issue const& asset, std::optional<STAmount> const& amount, AccountID const& ammAccount);
 }  // namespace jtx
 }  // namespace test
 }  // namespace ripple

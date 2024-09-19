@@ -90,21 +90,6 @@ ammClawback(Account const& issuer, Account const& holder, Issue const& asset, st
         jv[jss::Flags] = *flags;
     return jv;
 }
-
-Json::Value
-ammClawback2(Account const& issuer, Account const& holder, Issue const& asset, std::optional<STAmount> const& amount, AccountID const& ammAccount)
-{
-    Json::Value jv;
-    jv[jss::TransactionType] = jss::AMMClawback;
-    jv[jss::Account] = issuer.human();
-    jv[jss::Holder] = holder.human();
-    jv[jss::AMMAccount] = to_string(ammAccount);
-    jv[jss::Asset] = to_json(asset);
-    if (amount)
-        jv[jss::Amount] = amount->getJson(JsonOptions::none);
-    
-    return jv;
-}
 }  // namespace jtx
 }  // namespace test
 }  // namespace ripple
