@@ -250,7 +250,7 @@ AMMDeposit::preclaim(PreclaimContext const& ctx)
         // if either asset is frozen
         auto checkAsset = [&](std::optional<Issue> const& asset) -> TER {
             if (!asset.has_value())
-                return temMALFORMED;
+                return temMALFORMED;  // LCOV_EXCL_LINE
 
             if (isFrozen(ctx.view, accountID, asset.value()))
             {

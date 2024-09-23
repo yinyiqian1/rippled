@@ -456,8 +456,10 @@ withdraw(
         std::nullopt,
         FreezeHandling::fhZERO_IF_FROZEN,
         journal);
+    // LCOV_EXCL_START
     if (!expected)
         return {expected.error(), STAmount{}, STAmount{}, STAmount{}};
+    // LCOV_EXCL_STOP
     auto const [curBalance, curBalance2, _] = *expected;
     (void)_;
 
@@ -492,11 +494,13 @@ withdraw(
     if (view.rules().enabled(fixAMMv1_1) &&
         lpTokensWithdrawActual > lpTokensAMMBalance)
     {
+        // LCOV_EXCL_START
         JLOG(journal.debug())
             << "AMM Withdraw: failed to withdraw, unexpected LP tokens: "
             << lpTokensWithdrawActual << " " << lpTokens << " "
             << lpTokensAMMBalance;
         return {tecINTERNAL, STAmount{}, STAmount{}, STAmount{}};
+        // LCOV_EXCL_STOP
     }
 
     // Withdrawing one side of the pool
@@ -551,9 +555,11 @@ withdraw(
         WaiveTransferFee::Yes);
     if (res != tesSUCCESS)
     {
+        // LCOV_EXCL_START
         JLOG(journal.debug())
             << "AMM Withdraw: failed to withdraw " << amountWithdrawActual;
         return {res, STAmount{}, STAmount{}, STAmount{}};
+        // LCOV_EXCL_STOP
     }
 
     // Withdraw amount2Withdraw
@@ -568,9 +574,11 @@ withdraw(
             WaiveTransferFee::Yes);
         if (res != tesSUCCESS)
         {
+            // LCOV_EXCL_START
             JLOG(journal.debug()) << "AMM Withdraw: failed to withdraw "
                                   << *amount2WithdrawActual;
             return {res, STAmount{}, STAmount{}, STAmount{}};
+            // LCOV_EXCL_STOP
         }
     }
 
@@ -583,8 +591,10 @@ withdraw(
         journal);
     if (res != tesSUCCESS)
     {
+        // LCOV_EXCL_START
         JLOG(journal.debug()) << "AMM Withdraw: failed to withdraw LPTokens";
         return {res, STAmount{}, STAmount{}, STAmount{}};
+        // LCOV_EXCL_STOP
     }
 
     return std::make_tuple(
@@ -609,7 +619,7 @@ deleteAMMAccountIfEmpty(
     {
         ter = deleteAMMAccount(sb, issue1, issue2, journal);
         if (ter != tesSUCCESS && ter != tecINCOMPLETE)
-            return {ter, false};
+            return {ter, false};  // LCOV_EXCL_LINE
         else
             updateBalance = (ter == tecINCOMPLETE);
     }

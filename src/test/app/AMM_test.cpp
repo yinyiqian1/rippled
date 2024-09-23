@@ -7030,6 +7030,7 @@ private:
         testInvalidInstance();
         testInstanceCreate();
         testInvalidDeposit(all);
+        testInvalidDeposit(all - featureAMMClawback);
         testDeposit();
         testInvalidWithdraw();
         testWithdraw();

@@ -40,7 +40,7 @@ AMMClawback::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;
+        return ret;  // LCOV_EXCL_LINE
 
     if (ctx.tx.getFlags() & tfAMMClawbackMask)
         return temINVALID_FLAG;
@@ -75,7 +75,7 @@ AMMClawback::preflight(PreflightContext const& ctx)
         return temBAD_ASSET_AMOUNT;
     }
 
-    if (clawAmount && (*clawAmount < beast::zero || isXRP(*clawAmount)))
+    if (clawAmount && *clawAmount <= beast::zero)
         return temBAD_AMOUNT;
 
     return preflight2(ctx);
@@ -117,11 +117,7 @@ AMMClawback::preclaim(PreclaimContext const& ctx)
 
     auto const sleAMM = ctx.view.read(keylet::amm(ammID));
     if (!sleAMM)
-    {
-        JLOG(ctx.j.trace())
-            << "AMMClawback: can not find AMM with ammID: " << ammID;
-        return tecINTERNAL;
-    }
+        return tecINTERNAL;  // LCOV_EXCL_LINE
 
     STIssue const& asset = sleAMM->getFieldIssue(sfAsset);
     STIssue const& asset2 = sleAMM->getFieldIssue(sfAsset2);
@@ -153,14 +149,14 @@ AMMClawback::doApply()
 {
     Sandbox sb(&ctx_.view());
 
-    auto const result = applyGuts(sb);
-    if (result.second)
+    auto const ter = applyGuts(sb);
+    if (ter == tesSUCCESS)
         sb.apply(ctx_.rawView());
 
-    return result.first;
+    return ter;
 }
 
-std::pair<TER, bool>
+TER
 AMMClawback::applyGuts(Sandbox& sb)
 {
     std::optional<STAmount> const clawAmount = ctx_.tx[~sfAmount];
@@ -172,18 +168,16 @@ AMMClawback::applyGuts(Sandbox& sb)
     auto const sleAMMAccount = ctx_.view().read(keylet::account(ammAccount));
 
     // should not happen. checked in preclaim.
-    // LCOV_EXCL_START
     if (!sleAMMAccount)
-        return {terNO_AMM, false};
+        return terNO_AMM;  // LCOV_EXCL_LINE
 
     auto const ammID = sleAMMAccount->getFieldH256(sfAMMID);
     if (!ammID)
-        return {tecINTERNAL, false};
+        return tecINTERNAL;  // LCOV_EXCL_LINE
 
     auto ammSle = sb.peek(keylet::amm(ammID));
     if (!ammSle)
-        return {tecINTERNAL, false};
-    // LCOV_EXCL_STOP
+        return tecINTERNAL;  // LCOV_EXCL_LINE
 
     auto const tfee = getTradingFee(ctx_.view(), *ammSle, ammAccount);
     Issue const& issue1 = ammSle->getFieldIssue(sfAsset).issue();
@@ -202,7 +196,7 @@ AMMClawback::applyGuts(Sandbox& sb)
         ctx_.journal);
 
     if (!expected)
-        return {expected.error(), false};
+        return expected.error();  // LCOV_EXCL_LINE
     auto const [amountBalance, amount2Balance, lptAMMBalance] = *expected;
 
     TER result;
@@ -212,7 +206,7 @@ AMMClawback::applyGuts(Sandbox& sb)
 
     auto const holdLPtokens = ammLPHolds(sb, *ammSle, holder, j_);
     if (holdLPtokens == beast::zero)
-        return {tecINTERNAL, false};
+        return tecINTERNAL;
 
     if (!clawAmount)
     {
@@ -246,12 +240,12 @@ AMMClawback::applyGuts(Sandbox& sb)
                 tfee);
 
     if (result != tesSUCCESS)
-        return {result, false};
+        return result;  // LCOV_EXCL_LINE
 
     auto const res = deleteAMMAccountIfEmpty(
         sb, ammSle, newLPTokenBalance, issue1, issue2, j_);
     if (!res.second)
-        return {res.first, false};
+        return res.first;  // LCOV_EXCL_LINE
 
     JLOG(ctx_.journal.trace())
         << "AMM Withdraw during AMMClawback: lptoken new balance: "
@@ -260,22 +254,18 @@ AMMClawback::applyGuts(Sandbox& sb)
 
     auto const ter = rippleCredit(sb, holder, issuer, amountWithdraw, true, j_);
     if (ter != tesSUCCESS)
-        return {ter, false};
+        return ter;  // LCOV_EXCL_LINE
 
+    // if the issuer issues both assets and sets flag tfClawTwoAssets, we
+    // will claw the paired asset as well. We already checked if
+    // tfClawTwoAssets is enabled, the two assets have to be issued by the
+    // same issuer.
     auto const flags = ctx_.tx.getFlags();
     if (flags & tfClawTwoAssets)
-    {
-        // if the issuer issues both assets and sets flag tfClawTwoAssets, we
-        // will claw the paired asset as well. We already checked if
-        // tfClawTwoAssets is enabled, the two assets have to be issued by the
-        // same issuer.
-        auto const ter =
-            rippleCredit(sb, holder, issuer, *amount2Withdraw, true, j_);
-        if (ter != tesSUCCESS)
-            return {ter, false};
-    }
 
-    return {tesSUCCESS, true};
+        return rippleCredit(sb, holder, issuer, *amount2Withdraw, true, j_);
+
+    return tesSUCCESS;
 }
 
 std::tuple<TER, STAmount, STAmount, std::optional<STAmount>>

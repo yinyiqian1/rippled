@@ -182,7 +182,7 @@ constexpr std::uint32_t tfWithdrawMask = ~(tfUniversal | tfWithdrawSubTx);
 constexpr std::uint32_t tfDepositMask = ~(tfUniversal | tfDepositSubTx);
 
 // AMMClawback flags:
-constexpr std::uint32_t tfClawTwoAssets                = 0x00010000;
+constexpr std::uint32_t tfClawTwoAssets                = 0x00000001;
 constexpr std::uint32_t tfAMMClawbackMask = ~(tfUniversal | tfClawTwoAssets);
 
 // BridgeModify flags:

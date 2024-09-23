@@ -43,7 +43,7 @@ public:
     doApply() override;
 
 private:
-    std::pair<TER, bool>
+    TER
     applyGuts(Sandbox& view);
 
     /** Withdraw both assets by providing maximum amount of asset1,

@@ -430,8 +430,10 @@ AMMWithdraw::applyGuts(Sandbox& sb)
 
     auto const res = deleteAMMAccountIfEmpty(
         sb, ammSle, newLPTokenBalance, ctx_.tx[sfAsset], ctx_.tx[sfAsset2], j_);
+    // LCOV_EXCL_START
     if (!res.second)
         return {res.first, false};
+    // LCOV_EXCL_STOP
 
     JLOG(ctx_.journal.trace())
         << "AMM Withdraw: tokens " << to_string(newLPTokenBalance.iou()) << " "
