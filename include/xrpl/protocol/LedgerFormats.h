@@ -196,6 +196,12 @@ enum LedgerEntryType : std::uint16_t
         \sa keylet::oracle
      */
     ltORACLE = 0x0080,
+    
+    /** A ledger object representing permissions an account has delegated to another account.
+     
+        \sa keylet::accountPermission
+     */
+    ltACCOUNT_PERMISSION = 0x0081,
 
     //---------------------------------------------------------------------------
     /** A special type, matching any ledger entry type.

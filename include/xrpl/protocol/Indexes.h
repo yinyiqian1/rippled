@@ -272,6 +272,20 @@ amm(Issue const& issue1, Issue const& issue2) noexcept;
 Keylet
 amm(uint256 const& amm) noexcept;
 
+/** An AccountPermission */
+/** @{ */
+Keylet
+AccountPermission(
+    AccountID const& account,
+    AccountID const& authorizedAccount) noexcept;
+
+inline Keylet
+AccountPermission(uint256 const& key) noexcept
+{
+    return {ltACCOUNT_PERMISSION, key};
+}
+/** @} */
+
 Keylet
 bridge(STXChainBridge const& bridge, STXChainBridge::ChainType chainType);
 

@@ -293,6 +293,17 @@ LedgerFormats::LedgerFormats()
         },
         commonFields);
 
+    add(jss::AccountPermission,
+        ltACCOUNT_PERMISSION,
+        {
+            {sfAccount,              soeREQUIRED},
+            {sfAuthorize,            soeREQUIRED},
+            {sfPermissions,          soeREQUIRED},
+            {sfPreviousTxnID,        soeREQUIRED},
+            {sfPreviousTxnLgrSeq,    soeREQUIRED},
+        },
+        commonFields);
+
     add(jss::Bridge,
         ltBRIDGE,
         {

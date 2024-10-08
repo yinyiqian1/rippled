@@ -513,6 +513,14 @@ TxFormats::TxFormats()
             {sfOwner, soeOPTIONAL},
         },
         commonFields);
+
+    add(jss::AccountPermissionSet,
+        ttACCOUNT_PERMISSION_SET,
+        {
+            {sfAuthorize, soeREQUIRED},
+            {sfPermissions, soeREQUIRED},
+        },
+        commonFields);
 }
 
 TxFormats const&

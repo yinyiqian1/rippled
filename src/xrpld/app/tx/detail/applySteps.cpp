@@ -24,6 +24,7 @@
 #include <xrpld/app/tx/detail/AMMDeposit.h>
 #include <xrpld/app/tx/detail/AMMVote.h>
 #include <xrpld/app/tx/detail/AMMWithdraw.h>
+#include <xrpld/app/tx/detail/AccountPermissionSet.h>
 #include <xrpld/app/tx/detail/ApplyContext.h>
 #include <xrpld/app/tx/detail/CancelCheck.h>
 #include <xrpld/app/tx/detail/CancelOffer.h>
@@ -78,6 +79,8 @@ with_txn_type(TxType txnType, F&& f)
     {
         case ttACCOUNT_DELETE:
             return f.template operator()<DeleteAccount>();
+        case ttACCOUNT_PERMISSION_SET:
+            return f.template operator()<AccountPermissionSet>();
         case ttACCOUNT_SET:
             return f.template operator()<SetAccount>();
         case ttCHECK_CANCEL:

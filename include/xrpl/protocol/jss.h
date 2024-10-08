@@ -45,6 +45,8 @@ JSS(AL_size);              // out: GetCounts
 JSS(AL_hit_rate);          // out: GetCounts
 JSS(Account);              // in: TransactionSign; field.
 JSS(AccountDelete);        // transaction type.
+JSS(AccountPermission);    // ledger type.
+JSS(AccountPermissionSet);  // transaction type.
 JSS(AccountRoot);          // ledger type.
 JSS(AccountSet);           // transaction type.
 JSS(AMM);                  // ledger type
@@ -172,6 +174,7 @@ JSS(account_hash);           // out: LedgerToJson
 JSS(account_id);             // out: WalletPropose
 JSS(account_nfts);           // out: AccountNFTs
 JSS(account_objects);        // out: AccountObjects
+JSS(account_permission);     // AccountPermission
 JSS(account_root);           // in: LedgerEntry
 JSS(account_sequence_next);  // out: SubmitTransaction
 JSS(account_sequence_available);  // out: SubmitTransaction

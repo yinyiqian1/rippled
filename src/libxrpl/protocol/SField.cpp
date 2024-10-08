@@ -405,6 +405,7 @@ CONSTRUCT_UNTYPED_SFIELD(sfMemos,               "Memos",                ARRAY,  
 CONSTRUCT_UNTYPED_SFIELD(sfNFTokens,            "NFTokens",             ARRAY,     10);
 CONSTRUCT_UNTYPED_SFIELD(sfHooks,               "Hooks",                ARRAY,     11);
 CONSTRUCT_UNTYPED_SFIELD(sfVoteSlots,           "VoteSlots",            ARRAY,     12);
+CONSTRUCT_UNTYPED_SFIELD(sfPermissions,         "Permissions",          ARRAY,     13);
 
 // array of objects (uncommon)
 CONSTRUCT_UNTYPED_SFIELD(sfMajorities,          "Majorities",           ARRAY,     16);

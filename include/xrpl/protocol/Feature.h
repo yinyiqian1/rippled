@@ -372,6 +372,7 @@ extern uint256 const fixEnforceNFTokenTrustline;
 extern uint256 const fixInnerObjTemplate2;
 extern uint256 const featureInvariantsV1_1;
 extern uint256 const fixNFTokenPageLinks;
+extern uint256 const featureAccountPermission;
 
 }  // namespace ripple
 

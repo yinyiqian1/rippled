@@ -644,6 +644,10 @@ doLedgerEntry(RPC::JsonContext& context)
                     uNodeIndex = keylet::oracle(*account, *documentID).key;
             }
         }
+        else if (context.params.isMember(jss::account_permission))
+        {
+            // to be implemented
+        }
         else
         {
             if (context.params.isMember("params") &&
