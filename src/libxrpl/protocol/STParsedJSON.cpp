@@ -23,6 +23,7 @@
 #include <xrpl/beast/core/LexicalCast.h>
 #include <xrpl/protocol/ErrorCodes.h>
 #include <xrpl/protocol/LedgerFormats.h>
+#include <xrpl/protocol/PermissionFormats.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STAccount.h>
 #include <xrpl/protocol/STAmount.h>
@@ -318,6 +319,15 @@ parseLeaf(
                             if (*name == sfGeneric)
                                 name = &sfLedgerEntry;
                         }
+                        else if (field == sfPermissionValue)
+                        {
+                            ret = detail::make_stvar<STUInt16>(
+                                field,
+                                static_cast<std::uint16_t>(
+                                    TxFormats::getInstance().findTypeByName(
+                                        strValue) +
+                                    1));
+                        }
                         else
                         {
                             error = invalid_data(json_name, fieldName);
@@ -360,10 +370,21 @@ parseLeaf(
             {
                 if (value.isString())
                 {
-                    ret = detail::make_stvar<STUInt32>(
-                        field,
-                        beast::lexicalCastThrow<std::uint32_t>(
-                            value.asString()));
+                    if (field == sfGranularPermission)
+                    {
+                        ret = detail::make_stvar<STUInt32>(
+                            field,
+                            static_cast<std::uint32_t>(
+                                GranularPermissionFormats::getInstance()
+                                    .findTypeByName(value.asString())));
+                    }
+                    else
+                    {
+                        ret = detail::make_stvar<STUInt32>(
+                            field,
+                            beast::lexicalCastThrow<std::uint32_t>(
+                                value.asString()));
+                    }
                 }
                 else if (value.isInt())
                 {
