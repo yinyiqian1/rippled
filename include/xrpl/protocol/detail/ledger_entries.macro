@@ -114,6 +114,7 @@ LEDGER_ENTRY(ltSIGNER_LIST, 0x0053, SignerList, ({
     {sfSignerEntries,        soeREQUIRED},
     {sfSignerListID,         soeREQUIRED},
     {sfPreviousTxnID,        soeREQUIRED},
+
     {sfPreviousTxnLgrSeq,    soeREQUIRED},
 }))
 
@@ -388,6 +389,19 @@ LEDGER_ENTRY(ltORACLE, 0x0080, Oracle, ({
     {sfAssetClass,           soeREQUIRED},
     {sfLastUpdateTime,       soeREQUIRED},
     {sfURI,                  soeOPTIONAL},
+    {sfOwnerNode,            soeREQUIRED},
+    {sfPreviousTxnID,        soeREQUIRED},
+    {sfPreviousTxnLgrSeq,    soeREQUIRED},
+}))
+
+/** A ledger object representing permissions an account has delegated to another account.
+
+    \sa keylet::accountPermission
+ */
+LEDGER_ENTRY(ltACCOUNT_PERMISSION, 0x0081, AccountPermission, ({
+    {sfAccount,              soeREQUIRED},
+    {sfAuthorize,            soeREQUIRED},
+    {sfPermissions,          soeREQUIRED},
     {sfOwnerNode,            soeREQUIRED},
     {sfPreviousTxnID,        soeREQUIRED},
     {sfPreviousTxnLgrSeq,    soeREQUIRED},

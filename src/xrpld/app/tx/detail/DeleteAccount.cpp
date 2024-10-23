@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <xrpld/app/tx/detail/AccountPermissionSet.h>
 #include <xrpld/app/tx/detail/DID.h>
 #include <xrpld/app/tx/detail/DeleteAccount.h>
 #include <xrpld/app/tx/detail/DeleteOracle.h>
@@ -159,6 +160,19 @@ removeOracleFromLedger(
     return DeleteOracle::deleteOracle(view, sleDel, account, j);
 }
 
+TER
+removeAccountPermissionFromLedger(
+    Application& app,
+    ApplyView& view,
+    AccountID const& account,
+    uint256 const& delIndex,
+    std::shared_ptr<SLE> const& sleDel,
+    beast::Journal j)
+{
+    return AccountPermissionSet::deleteAccountPermission(
+        view, sleDel, account, j);
+}
+
 // Return nullptr if the LedgerEntryType represents an obligation that can't
 // be deleted.  Otherwise return the pointer to the function that can delete
 // the non-obligation
@@ -181,6 +195,8 @@ nonObligationDeleter(LedgerEntryType t)
             return removeDIDFromLedger;
         case ltORACLE:
             return removeOracleFromLedger;
+        case ltACCOUNT_PERMISSION:
+            return removeAccountPermissionFromLedger;
         default:
             return nullptr;
     }
