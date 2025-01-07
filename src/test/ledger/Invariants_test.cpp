@@ -94,7 +94,7 @@ class Invariants_test : public beast::unit_test::suite
         ApplyContext ac{
             env.app(),
             ov,
-            STTxWr(tx, false),
+            tx,
             tesSUCCESS,
             env.current()->fees().base,
             tapNONE,

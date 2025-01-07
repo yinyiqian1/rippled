@@ -118,7 +118,7 @@ requires(T::ConsequencesFactory == Transactor::Normal)
 TxConsequences
     consequences_helper(PreflightContext const& ctx)
 {
-    return TxConsequences(ctx.tx.getTx());
+    return TxConsequences(ctx.tx.getSTTx());
 };
 
 // For Transactor::Blocker
@@ -127,7 +127,7 @@ requires(T::ConsequencesFactory == Transactor::Blocker)
 TxConsequences
     consequences_helper(PreflightContext const& ctx)
 {
-    return TxConsequences(ctx.tx.getTx(), TxConsequences::blocker);
+    return TxConsequences(ctx.tx.getSTTx(), TxConsequences::blocker);
 };
 
 // For Transactor::Custom
@@ -179,7 +179,8 @@ invoke_preclaim(PreclaimContext const& ctx)
 
             if (id != beast::zero)
             {
-                TER result = T::checkSeqProxy(ctx.view, ctx.tx.getTx(), ctx.j);
+                TER result =
+                    T::checkSeqProxy(ctx.view, ctx.tx.getSTTx(), ctx.j);
 
                 if (result != tesSUCCESS)
                     return std::make_pair(result, permissions);
@@ -190,7 +191,7 @@ invoke_preclaim(PreclaimContext const& ctx)
                     return std::make_pair(result, permissions);
 
                 result = T::checkFee(
-                    ctx, calculateBaseFee(ctx.view, ctx.tx.getTx()));
+                    ctx, calculateBaseFee(ctx.view, ctx.tx.getSTTx()));
 
                 if (result != tesSUCCESS)
                     return std::make_pair(result, permissions);
@@ -204,7 +205,7 @@ invoke_preclaim(PreclaimContext const& ctx)
                     // if this is a delegated transaction, check if the account
                     // has authorization.
                     result = T::checkPermissions(
-                        ctx.view, ctx.tx.getTx(), permissions);
+                        ctx.view, ctx.tx.getSTTx(), permissions);
 
                 if (result != tesSUCCESS)
                     return std::make_pair(result, permissions);
@@ -305,7 +306,7 @@ PreflightResult
 preflight(
     Application& app,
     Rules const& rules,
-    STTxWr const& tx,
+    STTx const& tx,
     ApplyFlags flags,
     beast::Journal j)
 {
@@ -317,7 +318,7 @@ preflight(
     catch (std::exception const& e)
     {
         JLOG(j.fatal()) << "apply: " << e.what();
-        return {pfctx, {tefEXCEPTION, TxConsequences{tx.getTx()}}};
+        return {pfctx, {tefEXCEPTION, TxConsequences{tx}}};
     }
 }
 
@@ -333,14 +334,14 @@ preclaim(
         auto secondFlight = preflight(
             app,
             view.rules(),
-            preflightResult.tx,
+            preflightResult.tx.getSTTx(),
             preflightResult.flags,
             preflightResult.j);
         ctx.emplace(
             app,
             view,
             secondFlight.ter,
-            secondFlight.tx,
+            secondFlight.tx.getSTTx(),
             secondFlight.flags,
             secondFlight.j);
     }
@@ -350,7 +351,7 @@ preclaim(
             app,
             view,
             preflightResult.ter,
-            preflightResult.tx,
+            preflightResult.tx.getSTTx(),
             preflightResult.flags,
             preflightResult.j);
     }
@@ -401,9 +402,9 @@ doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view)
         ApplyContext ctx(
             app,
             view,
-            preclaimResult.tx,
+            preclaimResult.tx.getSTTx(),
             preclaimResult.ter,
-            calculateBaseFee(view, preclaimResult.tx.getTx()),
+            calculateBaseFee(view, preclaimResult.tx.getSTTx()),
             preclaimResult.flags,
             preclaimResult.permissions,
             preclaimResult.j);

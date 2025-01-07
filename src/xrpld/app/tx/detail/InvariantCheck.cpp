@@ -43,7 +43,7 @@ TransactionFeeCheck::visitEntry(
 
 bool
 TransactionFeeCheck::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const,
     XRPAmount const fee,
     ReadView const&,
@@ -137,7 +137,7 @@ XRPNotCreated::visitEntry(
 
 bool
 XRPNotCreated::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const,
     XRPAmount const fee,
     ReadView const&,
@@ -198,7 +198,7 @@ XRPBalanceChecks::visitEntry(
 
 bool
 XRPBalanceChecks::finalize(
-    STTxWr const&,
+    STTxDelegated const&,
     TER const,
     XRPAmount const,
     ReadView const&,
@@ -242,7 +242,7 @@ NoBadOffers::visitEntry(
 
 bool
 NoBadOffers::finalize(
-    STTxWr const&,
+    STTxDelegated const&,
     TER const,
     XRPAmount const,
     ReadView const&,
@@ -287,7 +287,7 @@ NoZeroEscrow::visitEntry(
 
 bool
 NoZeroEscrow::finalize(
-    STTxWr const&,
+    STTxDelegated const&,
     TER const,
     XRPAmount const,
     ReadView const&,
@@ -316,7 +316,7 @@ AccountRootsNotDeleted::visitEntry(
 
 bool
 AccountRootsNotDeleted::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const result,
     XRPAmount const,
     ReadView const&,
@@ -371,7 +371,7 @@ AccountRootsDeletedClean::visitEntry(
 
 bool
 AccountRootsDeletedClean::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const result,
     XRPAmount const,
     ReadView const& view,
@@ -496,7 +496,7 @@ LedgerEntryTypesMatch::visitEntry(
 
 bool
 LedgerEntryTypesMatch::finalize(
-    STTxWr const&,
+    STTxDelegated const&,
     TER const,
     XRPAmount const,
     ReadView const&,
@@ -539,7 +539,7 @@ NoXRPTrustLines::visitEntry(
 
 bool
 NoXRPTrustLines::finalize(
-    STTxWr const&,
+    STTxDelegated const&,
     TER const,
     XRPAmount const,
     ReadView const&,
@@ -569,7 +569,7 @@ ValidNewAccountRoot::visitEntry(
 
 bool
 ValidNewAccountRoot::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const result,
     XRPAmount const,
     ReadView const& view,
@@ -720,7 +720,7 @@ ValidNFTokenPage::visitEntry(
 
 bool
 ValidNFTokenPage::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const result,
     XRPAmount const,
     ReadView const& view,
@@ -796,7 +796,7 @@ NFTokenCountTracking::visitEntry(
 
 bool
 NFTokenCountTracking::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const result,
     XRPAmount const,
     ReadView const& view,
@@ -897,7 +897,7 @@ ValidClawback::visitEntry(
 
 bool
 ValidClawback::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const result,
     XRPAmount const,
     ReadView const& view,
@@ -985,7 +985,7 @@ ValidMPTIssuance::visitEntry(
 
 bool
 ValidMPTIssuance::finalize(
-    STTxWr const& tx,
+    STTxDelegated const& tx,
     TER const result,
     XRPAmount const _fee,
     ReadView const& _view,

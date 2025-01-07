@@ -439,6 +439,13 @@ STTx::checkMultiSign(
     return {};
 }
 
+AccountID
+STTx::getEffectiveAccountID() const
+{
+    return isFieldPresent(sfOnBehalfOf) ? getAccountID(sfOnBehalfOf)
+                                        : getAccountID(sfAccount);
+}
+
 //------------------------------------------------------------------------------
 
 static bool

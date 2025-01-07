@@ -32,20 +32,20 @@ namespace ripple {
 // delegated by another account by checking if the sfOnBehalfOf field is
 // present. If it is present, we need to return the sfOnBehalfOf field as the
 // account when calling getAccountID(sfAccount) and tx[sfAccount].
-class STTxWr
+class STTxDelegated
 {
 private:
     const STTx& tx_;    // Wrap an instance of STTx
     bool isDelegated_;  // if the transaction is delegated by another account
 
 public:
-    explicit STTxWr(STTx const& tx, bool isDelegated)
+    explicit STTxDelegated(STTx const& tx, bool isDelegated)
         : tx_(tx), isDelegated_(isDelegated)
     {
     }
 
-    STTx
-    getTx() const
+    const STTx&
+    getSTTx() const
     {
         return tx_;
     }
@@ -66,9 +66,8 @@ public:
     }
 
     template <class T>
-    typename std::enable_if<
-        !std::is_same<TypedField<T>, SF_ACCOUNT>::value,
-        typename T::value_type>::type
+        requires(!std::is_same<TypedField<T>, SF_ACCOUNT>::value)
+    typename T::value_type
     operator[](TypedField<T> const& f) const
     {
         return tx_[f];
@@ -78,9 +77,8 @@ public:
     // check if the transaction is delegated by another account. If it is,
     // return sfOnBehalfOf field instead.
     template <class T>
-    typename std::enable_if<
-        std::is_same<TypedField<T>, SF_ACCOUNT>::value,
-        AccountID>::type
+        requires std::is_same<TypedField<T>, SF_ACCOUNT>::value
+    AccountID
     operator[](TypedField<T> const& f) const
     {
         if (f == sfAccount)

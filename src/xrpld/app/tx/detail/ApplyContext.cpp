@@ -31,14 +31,14 @@ namespace ripple {
 ApplyContext::ApplyContext(
     Application& app_,
     OpenView& base,
-    STTxWr const& tx_,
+    STTx const& tx_,
     TER preclaimResult_,
     XRPAmount baseFee_,
     ApplyFlags flags,
     std::unordered_set<GranularPermissionType> const permissions,
     beast::Journal journal_)
     : app(app_)
-    , tx(tx_)
+    , tx(STTxDelegated(tx_, tx_.isFieldPresent(sfOnBehalfOf)))
     , preclaimResult(preclaimResult_)
     , baseFee(baseFee_)
     , permissions(std::move(permissions))
@@ -58,7 +58,7 @@ ApplyContext::discard()
 void
 ApplyContext::apply(TER ter)
 {
-    view_->apply(base_, tx.getTx(), ter, journal);
+    view_->apply(base_, tx.getSTTx(), ter, journal);
 }
 
 std::size_t

@@ -53,7 +53,7 @@ SetAccount::makeTxConsequences(PreflightContext const& ctx)
     };
 
     return TxConsequences{
-        ctx.tx.getTx(), getTxConsequencesCategory(ctx.tx.getTx())};
+        ctx.tx.getSTTx(), getTxConsequencesCategory(ctx.tx.getSTTx())};
 }
 
 NotTEC
@@ -263,7 +263,7 @@ SetAccount::doApply()
     std::uint32_t const uFlagsIn = sle->getFieldU32(sfFlags);
     std::uint32_t uFlagsOut = uFlagsIn;
 
-    STTx const& tx{ctx_.tx.getTx()};
+    STTx const& tx{ctx_.tx.getSTTx()};
     std::uint32_t const uSetFlag{tx.getFieldU32(sfSetFlag)};
     std::uint32_t const uClearFlag{tx.getFieldU32(sfClearFlag)};
 

@@ -42,7 +42,8 @@ Payment::makeTxConsequences(PreflightContext const& ctx)
         return maxAmount.native() ? maxAmount.xrp() : beast::zero;
     };
 
-    return TxConsequences{ctx.tx.getTx(), calculateMaxXRPSpend(ctx.tx.getTx())};
+    return TxConsequences{
+        ctx.tx.getSTTx(), calculateMaxXRPSpend(ctx.tx.getSTTx())};
 }
 
 STAmount

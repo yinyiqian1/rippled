@@ -18,8 +18,6 @@
 //==============================================================================
 
 #include <xrpl/protocol/Permissions.h>
-#include <xrpl/protocol/SField.h>
-#include <xrpl/protocol/SOTemplate.h>
 #include <xrpl/protocol/jss.h>
 
 namespace ripple {

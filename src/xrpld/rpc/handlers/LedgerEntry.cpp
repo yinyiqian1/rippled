@@ -869,7 +869,7 @@ doLedgerEntry(RPC::JsonContext& context)
         {jss::index, parseIndex, ltANY},
         {jss::account_root, parseAccountRoot, ltACCOUNT_ROOT},
         // TODO: add amendments
-        {jss::amm, parseAccountPermission, ltACCOUNT_PERMISSION},
+        {jss::account_permission, parseAccountPermission, ltACCOUNT_PERMISSION},
         {jss::amm, parseAMM, ltAMM},
         {jss::bridge, parseBridge, ltBRIDGE},
         {jss::check, parseCheck, ltCHECK},

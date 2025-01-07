@@ -33,14 +33,14 @@ struct PreflightContext
 {
 public:
     Application& app;
-    STTxWr const& tx;
+    STTxDelegated const tx;
     Rules const rules;
     ApplyFlags flags;
     beast::Journal const j;
 
     PreflightContext(
         Application& app_,
-        STTxWr const& tx_,
+        STTx const& tx_,
         Rules const& rules_,
         ApplyFlags flags_,
         beast::Journal j_);
@@ -56,7 +56,7 @@ public:
     Application& app;
     ReadView const& view;
     TER preflightResult;
-    STTxWr const& tx;
+    STTxDelegated const tx;
     ApplyFlags flags;
     beast::Journal const j;
 
@@ -64,13 +64,13 @@ public:
         Application& app_,
         ReadView const& view_,
         TER preflightResult_,
-        STTxWr const& tx_,
+        STTx const& tx_,
         ApplyFlags flags_,
         beast::Journal j_ = beast::Journal{beast::Journal::getNullSink()})
         : app(app_)
         , view(view_)
         , preflightResult(preflightResult_)
-        , tx(tx_)
+        , tx(STTxDelegated(tx_, tx_.isFieldPresent(sfOnBehalfOf)))
         , flags(flags_)
         , j(j_)
     {

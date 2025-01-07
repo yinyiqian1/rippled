@@ -309,8 +309,8 @@ TxQ::MaybeTx::apply(Application& app, OpenView& view, beast::Journal j)
                         << " rules or flags have changed. Flags from "
                         << pfresult->flags << " to " << flags;
 
-        pfresult.emplace(
-            preflight(app, view.rules(), pfresult->tx, flags, pfresult->j));
+        pfresult.emplace(preflight(
+            app, view.rules(), pfresult->tx.getSTTx(), flags, pfresult->j));
     }
 
     auto pcresult = preclaim(*pfresult, app, view);
@@ -751,10 +751,7 @@ TxQ::apply(
     // See if the transaction is valid, properly formed,
     // etc. before doing potentially expensive queue
     // replace and multi-transaction operations.
-    bool const isDelegated = view.rules().enabled(featureAccountPermission) &&
-        tx->isFieldPresent(sfOnBehalfOf);
-    STTxWr txWr(*tx, isDelegated);
-    auto const pfresult = preflight(app, view.rules(), txWr, flags, j);
+    auto const pfresult = preflight(app, view.rules(), *tx, flags, j);
     if (pfresult.ter != tesSUCCESS)
         return {pfresult.ter, false};
 

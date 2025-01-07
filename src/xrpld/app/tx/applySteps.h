@@ -23,7 +23,7 @@
 #include <xrpld/ledger/ApplyViewImpl.h>
 #include <xrpl/beast/utility/Journal.h>
 #include <xrpl/protocol/Permissions.h>
-#include <xrpl/protocol/STTxWr.h>
+#include <xrpl/protocol/STTxDelegated.h>
 
 namespace ripple {
 
@@ -153,7 +153,7 @@ struct PreflightResult
 {
 public:
     /// From the input - the transaction
-    STTxWr const& tx;
+    STTxDelegated const tx;
     /// From the input - the rules
     Rules const rules;
     /// Consequences of the transaction
@@ -197,7 +197,7 @@ public:
     /// From the input - the ledger view
     ReadView const& view;
     /// From the input - the transaction
-    STTxWr const& tx;
+    STTxDelegated const tx;
     /// From the input - the flags
     ApplyFlags const flags;
     /// From the input - the journal
@@ -254,7 +254,7 @@ PreflightResult
 preflight(
     Application& app,
     Rules const& rules,
-    STTxWr const& tx,
+    STTx const& tx,
     ApplyFlags flags,
     beast::Journal j);
 

@@ -2491,7 +2491,7 @@ public:
             auto const pf = preflight(
                 env.app(),
                 env.current()->rules(),
-                STTxWr(*jtx.stx, false),
+                *jtx.stx,
                 tapNONE,
                 env.journal);
             BEAST_EXPECT(pf.ter == tesSUCCESS);
@@ -2508,7 +2508,7 @@ public:
             auto const pf = preflight(
                 env.app(),
                 env.current()->rules(),
-                STTxWr(*jtx.stx, false),
+                *jtx.stx,
                 tapNONE,
                 env.journal);
             BEAST_EXPECT(pf.ter == tesSUCCESS);
@@ -2522,7 +2522,7 @@ public:
             auto const pf = preflight(
                 env.app(),
                 env.current()->rules(),
-                STTxWr(*jtx.stx, false),
+                *jtx.stx,
                 tapNONE,
                 env.journal);
             BEAST_EXPECT(pf.ter == tesSUCCESS);

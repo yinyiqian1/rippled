@@ -470,7 +470,7 @@ AMMWithdraw::withdraw(
         lpTokensWithdraw,
         tfee,
         FreezeHandling::fhZERO_IF_FROZEN,
-        isWithdrawAll(ctx_.tx.getTx()),
+        isWithdrawAll(ctx_.tx.getSTTx()),
         mPriorBalance,
         j_);
     return {ter, newLPTokenBalance};
@@ -707,7 +707,7 @@ AMMWithdraw::equalWithdrawTokens(
             lpTokensWithdraw,
             tfee,
             FreezeHandling::fhZERO_IF_FROZEN,
-            isWithdrawAll(ctx_.tx.getTx()),
+            isWithdrawAll(ctx_.tx.getSTTx()),
             mPriorBalance,
             ctx_.journal);
     return {ter, newLPTokenBalance};

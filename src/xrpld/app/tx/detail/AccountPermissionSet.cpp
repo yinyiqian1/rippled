@@ -60,13 +60,10 @@ AccountPermissionSet::preflight(PreflightContext const& ctx)
 TER
 AccountPermissionSet::preclaim(PreclaimContext const& ctx)
 {
-    auto const account = ctx.view.read(keylet::account(ctx.tx[sfAccount]));
-    if (!account)
+    if (!ctx.view.exists(keylet::account(ctx.tx[sfAccount])))
         return terNO_ACCOUNT;  // LCOV_EXCL_LINE
 
-    auto const authAccount =
-        ctx.view.read(keylet::account(ctx.tx[sfAuthorize]));
-    if (!authAccount)
+    if (!ctx.view.exists(keylet::account(ctx.tx[sfAuthorize])))
         return terNO_ACCOUNT;
 
     return tesSUCCESS;
@@ -86,6 +83,13 @@ AccountPermissionSet::doApply()
     if (sle)
     {
         auto const& permissions = ctx_.tx.getFieldArray(sfPermissions);
+        if (permissions.empty())
+        {
+            // if permissions array is empty, delete the ledger object.
+            ctx_.view().erase(sle);
+            return tesSUCCESS;
+        }
+
         sle->setFieldArray(sfPermissions, permissions);
         ctx_.view().update(sle);
         return tesSUCCESS;

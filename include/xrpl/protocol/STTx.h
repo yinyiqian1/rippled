@@ -139,6 +139,9 @@ public:
         char status,
         std::string const& escapedMetaData) const;
 
+    AccountID
+    getEffectiveAccountID() const;
+
 private:
     Expected<void, std::string>
     checkSingleSign(RequireFullyCanonicalSig requireCanonicalSig) const;

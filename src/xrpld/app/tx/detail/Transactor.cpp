@@ -41,7 +41,7 @@ namespace ripple {
 NotTEC
 preflight0(PreflightContext const& ctx)
 {
-    if (!isPseudoTx(ctx.tx.getTx()) || ctx.tx.isFieldPresent(sfNetworkID))
+    if (!isPseudoTx(ctx.tx.getSTTx()) || ctx.tx.isFieldPresent(sfNetworkID))
     {
         uint32_t nodeNID = ctx.app.config().NETWORK_ID;
         std::optional<uint32_t> txNID = ctx.tx[~sfNetworkID];
@@ -97,7 +97,7 @@ preflight1(PreflightContext const& ctx)
     if (!isTesSuccess(ret))
         return ret;
 
-    auto const id = ctx.tx.getTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
     if (id == beast::zero)
     {
         JLOG(ctx.j.warn()) << "preflight1: bad account id";
@@ -130,10 +130,6 @@ preflight1(PreflightContext const& ctx)
         ctx.tx.isFieldPresent(sfAccountTxnID))
         return temINVALID;
 
-    if (!ctx.rules.enabled(featureAccountPermission) &&
-        ctx.tx.isFieldPresent(sfOnBehalfOf))
-        return temDISABLED;
-
     return tesSUCCESS;
 }
 
@@ -142,7 +138,7 @@ NotTEC
 preflight2(PreflightContext const& ctx)
 {
     auto const sigValid = checkValidity(
-        ctx.app.getHashRouter(), ctx.tx.getTx(), ctx.rules, ctx.app.config());
+        ctx.app.getHashRouter(), ctx.tx.getSTTx(), ctx.rules, ctx.app.config());
     if (sigValid.first == Validity::SigBad)
     {
         JLOG(ctx.j.debug()) << "preflight2: bad signature. " << sigValid.second;
@@ -155,11 +151,15 @@ preflight2(PreflightContext const& ctx)
 
 PreflightContext::PreflightContext(
     Application& app_,
-    STTxWr const& tx_,
+    STTx const& tx_,
     Rules const& rules_,
     ApplyFlags flags_,
     beast::Journal j_)
-    : app(app_), tx(tx_), rules(rules_), flags(flags_), j(j_)
+    : app(app_)
+    , tx(STTxDelegated(tx_, tx_.isFieldPresent(sfOnBehalfOf)))
+    , rules(rules_)
+    , flags(flags_)
+    , j(j_)
 {
 }
 
@@ -194,14 +194,15 @@ Transactor::checkPermissions(
     STTx const& tx,
     std::unordered_set<GranularPermissionType>& permissions)
 {
-    if (!view.read(keylet::account(tx[sfOnBehalfOf])))
+    if (!tx.isFieldPresent(sfOnBehalfOf) ||
+        !view.exists(keylet::account(tx[sfOnBehalfOf])))
         return terNO_ACCOUNT;
 
     auto const accountPermissionKey =
         keylet::accountPermission(tx[sfOnBehalfOf], tx[sfAccount]);
     auto const sle = view.read(accountPermissionKey);
     if (!sle)
-        return temMALFORMED;  // todo: change error code
+        return tecNO_PERMISSION;
 
     auto const permissionArray = sle->getFieldArray(sfPermissions);
     auto const transactionType = tx.getTxnType();
@@ -271,7 +272,7 @@ Transactor::checkFee(PreclaimContext const& ctx, XRPAmount baseFee)
     if (feePaid == beast::zero)
         return tesSUCCESS;
 
-    auto const id = ctx.tx.getTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
     auto const sle = ctx.view.read(keylet::account(id));
     if (!sle)
         return terNO_ACCOUNT;
@@ -300,33 +301,20 @@ TER
 Transactor::payFee()
 {
     auto const feePaid = ctx_.tx[sfFee].xrp();
-    if (ctx_.tx.isDelegated())
-    {
-        // if the transaction is being delegated to another account,
-        // the sender account will pay the fee.
-        auto const sender = ctx_.tx.getTx().getAccountID(sfAccount);
-        auto const sleSender = view().peek(keylet::account(sender));
-        if (!sleSender)
-            return tefINTERNAL;
-
-        auto senderBalance = STAmount{(*sleSender)[sfBalance]}.xrp();
-        senderBalance -= feePaid;
-        sleSender->setFieldAmount(sfBalance, senderBalance);
-        view().update(sleSender);
-        return tesSUCCESS;
-    }
-
-    auto const sle = view().peek(keylet::account(account_));
-    if (!sle)
+    // whether the transaction is being delegated to another account or not,
+    // the sender account will pay the fee.
+    auto const sender = ctx_.tx.getSTTx().getAccountID(sfAccount);
+    auto const sleSender = view().peek(keylet::account(sender));
+    if (!sleSender)
         return tefINTERNAL;
 
-    // Deduct the fee, so it's not available during the transaction.
-    // Will only write the account back if the transaction succeeds.
+    auto senderBalance = STAmount{(*sleSender)[sfBalance]}.xrp();
+    senderBalance -= feePaid;
+    sleSender->setFieldAmount(sfBalance, senderBalance);
+    view().update(sleSender);
 
-    mSourceBalance -= feePaid;
-    sle->setFieldAmount(sfBalance, mSourceBalance);
-
-    // VFALCO Should we call view().rawDestroyXRP() here as well?
+    if (!ctx_.tx.isDelegated())
+        mSourceBalance -= feePaid;
 
     return tesSUCCESS;
 }
@@ -406,7 +394,7 @@ Transactor::checkSeqProxy(
 NotTEC
 Transactor::checkPriorTxAndLastLedger(PreclaimContext const& ctx)
 {
-    auto const id = ctx.tx.getTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
 
     auto const sle = ctx.view.read(keylet::account(id));
 
@@ -576,7 +564,7 @@ Transactor::checkSingleSign(PreclaimContext const& ctx)
 
     // Look up the account.
     auto const idSigner = calcAccountID(PublicKey(makeSlice(pkSigner)));
-    auto const idAccount = ctx.tx.getTx().getAccountID(sfAccount);
+    auto const idAccount = ctx.tx.getSTTx().getAccountID(sfAccount);
     auto const sleAccount = ctx.view.read(keylet::account(idAccount));
     if (!sleAccount)
         return terNO_ACCOUNT;
@@ -639,7 +627,7 @@ Transactor::checkSingleSign(PreclaimContext const& ctx)
 NotTEC
 Transactor::checkMultiSign(PreclaimContext const& ctx)
 {
-    auto const id = ctx.tx.getTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
     // Get mTxnAccountID's SignerList and Quorum.
     std::shared_ptr<STLedgerEntry const> sleAccountSigners =
         ctx.view.read(keylet::signers(id));
@@ -947,7 +935,7 @@ Transactor::operator()()
         SerialIter sit(ser.slice());
         STTx s2(sit);
 
-        if (!s2.isEquivalent(ctx_.tx.getTx()))
+        if (!s2.isEquivalent(ctx_.tx.getSTTx()))
         {
             JLOG(j_.fatal()) << "Transaction serdes mismatch";
             JLOG(j_.info()) << to_string(ctx_.tx.getJson(JsonOptions::none));
