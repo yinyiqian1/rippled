@@ -33,7 +33,11 @@ namespace check {
 
 /** Cash a check requiring that a specific amount be delivered. */
 Json::Value
-cash(jtx::Account const& dest, uint256 const& checkId, STAmount const& amount);
+cash(
+    jtx::Account const& dest,
+    uint256 const& checkId,
+    STAmount const& amount,
+    std::optional<jtx::Account> const& onBehalfOf = std::nullopt);
 
 /** Type used to specify DeliverMin for cashing a check. */
 struct DeliverMin
@@ -49,11 +53,18 @@ Json::Value
 cash(
     jtx::Account const& dest,
     uint256 const& checkId,
-    DeliverMin const& atLeast);
+    DeliverMin const& atLeast,
+    std::optional<jtx::Account> const& onBehalfOf = std::nullopt);
 
 /** Cancel a check. */
 Json::Value
-cancel(jtx::Account const& dest, uint256 const& checkId);
+cancel(
+    jtx::Account const& dest,
+    uint256 const& checkId,
+    std::optional<jtx::Account> const& onBehalfOf = std::nullopt);
+
+std::vector<std::shared_ptr<SLE const>>
+checksOnAccount(test::jtx::Env& env, test::jtx::Account account);
 
 }  // namespace check
 

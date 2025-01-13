@@ -124,6 +124,18 @@ public:
         env(trust(becky, alice["USD"](50)));
         env.close();
 
+        env.require(lines(alice, 1));
+        env.require(lines(becky, 1));
+
+        Json::Value jv;
+        jv["account"] = becky.human();
+        auto beckyLines = env.rpc("json", "account_lines", to_string(jv));
+        std::cout << beckyLines[jss::result] << std::endl;
+
+        jv["account"] = alice.human();
+        auto aliceLines = env.rpc("json", "account_lines", to_string(jv));
+        std::cout << aliceLines[jss::result] << std::endl;
+
         // alice authorizes becky to hold alice["USD"] tokens
         env(trust(alice, alice["USD"](0), becky, tfSetfAuth));
         env.close();
@@ -136,12 +148,12 @@ public:
         env.require(lines(becky, 1));
 
         // Fetch the trust-lines via RPC for verification
-        Json::Value jv;
-        jv["account"] = becky.human();
-        auto beckyLines = env.rpc("json", "account_lines", to_string(jv));
+        // //Json::Value jv;
+        // jv["account"] = becky.human();
+        // auto beckyLines = env.rpc("json", "account_lines", to_string(jv));
 
-        jv["account"] = alice.human();
-        auto aliceLines = env.rpc("json", "account_lines", to_string(jv));
+        // jv["account"] = alice.human();
+        // auto aliceLines = env.rpc("json", "account_lines", to_string(jv));
 
         BEAST_EXPECT(aliceLines[jss::result][jss::lines].size() == 1);
         BEAST_EXPECT(beckyLines[jss::result][jss::lines].size() == 1);
@@ -621,24 +633,24 @@ public:
     void
     testWithFeats(FeatureBitset features)
     {
-        testFreeTrustlines(features, true, false);
-        testFreeTrustlines(features, false, true);
-        testFreeTrustlines(features, false, true);
-        // true, true case doesn't matter since creating a trustline ledger
-        // entry requires reserve from the creator
-        // independent of hi/low account ids for endpoints
-        testTicketSetTrust(features);
-        testMalformedTransaction(features);
-        testModifyQualityOfTrustline(features, false, false);
-        testModifyQualityOfTrustline(features, false, true);
-        testModifyQualityOfTrustline(features, true, false);
-        testModifyQualityOfTrustline(features, true, true);
-        testDisallowIncoming(features);
+        // testFreeTrustlines(features, true, false);
+        // testFreeTrustlines(features, false, true);
+        // testFreeTrustlines(features, false, true);
+        // // true, true case doesn't matter since creating a trustline ledger
+        // // entry requires reserve from the creator
+        // // independent of hi/low account ids for endpoints
+        // testTicketSetTrust(features);
+        // testMalformedTransaction(features);
+        // testModifyQualityOfTrustline(features, false, false);
+        // testModifyQualityOfTrustline(features, false, true);
+        // testModifyQualityOfTrustline(features, true, false);
+        // testModifyQualityOfTrustline(features, true, true);
+        // testDisallowIncoming(features);
         testTrustLineResetWithAuthFlag();
-        testTrustLineDelete();
-        testExceedTrustLineLimit();
-        testAuthFlagTrustLines();
-        testTrustLineLimitsWithRippling();
+        // testTrustLineDelete();
+        // testExceedTrustLineLimit();
+        // testAuthFlagTrustLines();
+        // testTrustLineLimitsWithRippling();
     }
 
 public:

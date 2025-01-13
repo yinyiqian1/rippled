@@ -82,7 +82,7 @@ MPTokenIssuanceCreate::create(
         return tecINSUFFICIENT_RESERVE;
 
     auto const mptIssuanceKeylet =
-        keylet::mptIssuance(args.sequence, args.account);
+        keylet::mptIssuance(args.sequence, args.sender);
 
     // create the MPTokenIssuance
     {
@@ -131,6 +131,7 @@ MPTokenIssuanceCreate::doApply()
         ctx_.journal,
         {.priorBalance = mPriorBalance,
          .account = account_,
+         .sender = tx.getSenderAccount(),
          .sequence = tx.getSeqProxy().value(),
          .flags = tx.getFlags(),
          .maxAmount = tx[~sfMaximumAmount],

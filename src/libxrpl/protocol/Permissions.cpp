@@ -86,7 +86,7 @@ Permission::isProhibited(std::string const& name) const
     // We do not allow delegating the following transaction permissions to other
     // accounts for security reason.
     if (name == "AccountSet" || name == "SetRegularKey" ||
-        name == "SignerListSet")
+        name == "SignerListSet" || name == "AccountPermissionset")
         return true;
 
     return false;

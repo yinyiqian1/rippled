@@ -756,6 +756,7 @@ TxQ::apply(
         return {pfresult.ter, false};
 
     // If the account is not currently in the ledger, don't queue its tx.
+    // todo: sender account for ticket?
     auto const account = (*tx)[sfAccount];
     Keylet const accountKey{keylet::account(account)};
     auto const sleAccount = view.read(accountKey);

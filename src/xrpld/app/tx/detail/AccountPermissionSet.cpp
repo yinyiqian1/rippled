@@ -36,7 +36,7 @@ AccountPermissionSet::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;
+        return ret;  // LCOV_EXCL_LINE
 
     auto const& permissions = ctx.tx.getFieldArray(sfPermissions);
     if (permissions.size() > permissionMaxSize)
@@ -76,8 +76,9 @@ AccountPermissionSet::doApply()
     if (!sleOwner)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
+    auto const& authAccount = ctx_.tx[sfAuthorize];
     auto const accountPermissionKey =
-        keylet::accountPermission(account_, ctx_.tx[sfAuthorize]);
+        keylet::accountPermission(account_, authAccount);
 
     auto sle = ctx_.view().peek(accountPermissionKey);
     if (sle)
@@ -102,6 +103,8 @@ AccountPermissionSet::doApply()
         return tecINSUFFICIENT_RESERVE;
 
     sle = std::make_shared<SLE>(accountPermissionKey);
+    sle->setAccountID(sfAccount, account_);
+    sle->setAccountID(sfAuthorize, authAccount);
     auto const& permissions = ctx_.tx.getFieldArray(sfPermissions);
     sle->setFieldArray(sfPermissions, permissions);
     auto const page = ctx_.view().dirInsert(

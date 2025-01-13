@@ -343,6 +343,23 @@ public:
     }
 };
 
+struct onBehalfOf
+{
+private:
+    jtx::Account onBehalfOf_;
+
+public:
+    explicit onBehalfOf(jtx::Account const& u) : onBehalfOf_(u)
+    {
+    }
+
+    void
+    operator()(jtx::Env&, jtx::JTx& jtx) const
+    {
+        jtx.jv[sfOnBehalfOf.jsonName] = onBehalfOf_.human();
+    }
+};
+
 /* Payment Channel */
 /******************************************************************************/
 
@@ -436,7 +453,7 @@ namespace check {
 template <typename A>
     requires std::is_same_v<A, AccountID>
 Json::Value
-create(A const& account, A const& dest, STAmount const& sendMax)
+create(A const& account, A const& dest, STAmount const& sendMax, std::optional<jtx::Account> const& onBehalfOf = std::nullopt)
 {
     Json::Value jv;
     jv[sfAccount.jsonName] = to_string(account);
@@ -444,6 +461,8 @@ create(A const& account, A const& dest, STAmount const& sendMax)
     jv[sfDestination.jsonName] = to_string(dest);
     jv[sfTransactionType.jsonName] = jss::CheckCreate;
     jv[sfFlags.jsonName] = tfUniversal;
+    if (onBehalfOf)
+        jv[sfOnBehalfOf.jsonName] = to_string(onBehalfOf->id());
     return jv;
 }
 // clang-format on
@@ -452,9 +471,10 @@ inline Json::Value
 create(
     jtx::Account const& account,
     jtx::Account const& dest,
-    STAmount const& sendMax)
+    STAmount const& sendMax,
+    std::optional<jtx::Account> const& onBehalfOf = std::nullopt)
 {
-    return create(account.id(), dest.id(), sendMax);
+    return create(account.id(), dest.id(), sendMax, onBehalfOf);
 }
 
 }  // namespace check

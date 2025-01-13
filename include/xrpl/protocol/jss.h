@@ -58,6 +58,7 @@ JSS(AssetClass);           // in: Oracle
 JSS(AssetPrice);           // in: Oracle
 JSS(AuthAccount);          // in: AMM Auction Slot
 JSS(AuthAccounts);         // in: AMM Auction Slot
+JSS(Authorize);            // in: account_permission
 JSS(BaseAsset);            // in: Oracle
 JSS(BidMax);               // in: AMM Bid
 JSS(BidMin);               // in: AMM Bid
@@ -92,11 +93,15 @@ JSS(LPTokenIn);            // in: AMM Liquidity Provider withdraw tokens
 JSS(LPToken);              // out: AMM Liquidity Provider tokens info
 JSS(Offer);                // ledger type.
 JSS(OfferSequence);        // field.
+JSS(OnBehalfOf);           // in: AccountPermission
 JSS(Oracle);               // ledger type.
 JSS(OracleDocumentID);     // field
 JSS(Owner);                // field
 JSS(Paths);                // in/out: TransactionSign
 JSS(PayChannel);           // ledger type.
+JSS(Permission);           // in: AccountPermission
+JSS(Permissions);          // in: AccountPermission
+JSS(PermissionValue);      // in: AccountPermission
 JSS(PriceDataSeries);                    // field.
 JSS(PriceData);                          // field.
 JSS(Provider);                           // field.

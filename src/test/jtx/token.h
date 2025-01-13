@@ -36,7 +36,10 @@ namespace token {
 
 /** Mint an NFToken. */
 Json::Value
-mint(jtx::Account const& account, std::uint32_t tokenTaxon = 0);
+mint(
+    jtx::Account const& account,
+    std::uint32_t tokenTaxon = 0,
+    std::optional<jtx::Account> const& onBehalfOf = std::nullopt);
 
 /** Sets the optional TransferFee on an NFTokenMint. */
 class xferFee

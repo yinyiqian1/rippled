@@ -30,12 +30,17 @@ namespace jtx {
 namespace token {
 
 Json::Value
-mint(jtx::Account const& account, std::uint32_t nfTokenTaxon)
+mint(
+    jtx::Account const& account,
+    std::uint32_t nfTokenTaxon,
+    std::optional<jtx::Account> const& onBehalfOf)
 {
     Json::Value jv;
     jv[sfAccount.jsonName] = account.human();
     jv[sfNFTokenTaxon.jsonName] = nfTokenTaxon;
     jv[sfTransactionType.jsonName] = jss::NFTokenMint;
+    if (onBehalfOf)
+        jv[sfOnBehalfOf.jsonName] = onBehalfOf->human();
     return jv;
 }
 

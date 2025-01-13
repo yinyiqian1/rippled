@@ -46,7 +46,9 @@ canHaveMPTokenIssuanceID(
     TxMeta const& transactionMeta);
 
 std::optional<uint192>
-getIDFromCreatedIssuance(TxMeta const& transactionMeta);
+getIDFromCreatedIssuance(
+    TxMeta const& transactionMeta,
+    AccountID const& sender);
 
 void
 insertMPTokenIssuanceID(

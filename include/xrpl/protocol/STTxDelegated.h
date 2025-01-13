@@ -57,6 +57,12 @@ public:
     }
 
     AccountID
+    getSenderAccount() const
+    {
+        return tx_.getAccountID(sfAccount);
+    }
+
+    AccountID
     getAccountID(SField const& field) const
     {
         if (field == sfAccount)

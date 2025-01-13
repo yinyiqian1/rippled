@@ -97,7 +97,7 @@ preflight1(PreflightContext const& ctx)
     if (!isTesSuccess(ret))
         return ret;
 
-    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSenderAccount();
     if (id == beast::zero)
     {
         JLOG(ctx.j.warn()) << "preflight1: bad account id";
@@ -226,7 +226,7 @@ Transactor::checkPermissions(
     }
 
     if (permissions.empty())
-        return terNO_AUTH;
+        return tecNO_PERMISSION;
 
     // When the code reaches here, the transaction permission is not authorized.
     // But one or more of its granular permission under this transaction type is
@@ -272,7 +272,7 @@ Transactor::checkFee(PreclaimContext const& ctx, XRPAmount baseFee)
     if (feePaid == beast::zero)
         return tesSUCCESS;
 
-    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSenderAccount();
     auto const sle = ctx.view.read(keylet::account(id));
     if (!sle)
         return terNO_ACCOUNT;
@@ -301,20 +301,20 @@ TER
 Transactor::payFee()
 {
     auto const feePaid = ctx_.tx[sfFee].xrp();
+
     // whether the transaction is being delegated to another account or not,
     // the sender account will pay the fee.
-    auto const sender = ctx_.tx.getSTTx().getAccountID(sfAccount);
-    auto const sleSender = view().peek(keylet::account(sender));
-    if (!sleSender)
+    auto const sle = view().peek(keylet::account(ctx_.tx.getSenderAccount()));
+    if (!sle)
         return tefINTERNAL;
 
-    auto senderBalance = STAmount{(*sleSender)[sfBalance]}.xrp();
-    senderBalance -= feePaid;
-    sleSender->setFieldAmount(sfBalance, senderBalance);
-    view().update(sleSender);
+    // Deduct the fee, so it's not available during the transaction.
+    // Will only write the account back if the transaction succeeds.
 
-    if (!ctx_.tx.isDelegated())
-        mSourceBalance -= feePaid;
+    mSourceBalance -= feePaid;
+    sle->setFieldAmount(sfBalance, mSourceBalance);
+
+    // VFALCO Should we call view().rawDestroyXRP() here as well?
 
     return tesSUCCESS;
 }
@@ -394,7 +394,7 @@ Transactor::checkSeqProxy(
 NotTEC
 Transactor::checkPriorTxAndLastLedger(PreclaimContext const& ctx)
 {
-    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSenderAccount();
 
     auto const sle = ctx.view.read(keylet::account(id));
 
@@ -436,6 +436,7 @@ Transactor::consumeSeqProxy(SLE::pointer const& sleAccount)
         sleAccount->setFieldU32(sfSequence, seqProx.value() + 1);
         return tesSUCCESS;
     }
+    // todo: account_ should changed to sender ?
     return ticketDelete(
         view(), account_, getTicketIndex(account_, seqProx), j_);
 }
@@ -510,7 +511,10 @@ Transactor::apply()
 
     // If the transactor requires a valid account and the transaction doesn't
     // list one, preflight will have already a flagged a failure.
-    auto const sle = view().peek(keylet::account(account_));
+    // auto const sle = view().peek(keylet::account(account_));
+    auto const sender = ctx_.tx.getSenderAccount();
+    auto const sle = view().peek(keylet::account(sender));
+    auto const account = ctx_.tx.getAccountID(sfAccount);
 
     // sle must exist except for transactions
     // that allow zero account.
@@ -537,7 +541,19 @@ Transactor::apply()
         view().update(sle);
     }
 
-    return doApply();
+    TER ter = doApply();
+
+    // if (sender != account)
+    // {
+    //     auto const sleAccount = view().peek(keylet::account(account));
+    //     std::cout << "onbehalf account sequence = "
+    //               << sleAccount->getFieldU32(sfSequence) << std::endl;
+    //     auto seq = sleAccount->getFieldU32(sfSequence);
+    //     sleAccount->setFieldU32(sfSequence, seq + 1);
+    //     view().update(sleAccount);
+    // }
+
+    return ter;
 }
 
 NotTEC
@@ -564,7 +580,7 @@ Transactor::checkSingleSign(PreclaimContext const& ctx)
 
     // Look up the account.
     auto const idSigner = calcAccountID(PublicKey(makeSlice(pkSigner)));
-    auto const idAccount = ctx.tx.getSTTx().getAccountID(sfAccount);
+    auto const idAccount = ctx.tx.getSenderAccount();
     auto const sleAccount = ctx.view.read(keylet::account(idAccount));
     if (!sleAccount)
         return terNO_ACCOUNT;
@@ -627,7 +643,7 @@ Transactor::checkSingleSign(PreclaimContext const& ctx)
 NotTEC
 Transactor::checkMultiSign(PreclaimContext const& ctx)
 {
-    auto const id = ctx.tx.getSTTx().getAccountID(sfAccount);
+    auto const id = ctx.tx.getSenderAccount();
     // Get mTxnAccountID's SignerList and Quorum.
     std::shared_ptr<STLedgerEntry const> sleAccountSigners =
         ctx.view.read(keylet::signers(id));
@@ -873,7 +889,7 @@ Transactor::reset(XRPAmount fee)
     ctx_.discard();
 
     auto const txnAcct =
-        view().peek(keylet::account(ctx_.tx.getAccountID(sfAccount)));
+        view().peek(keylet::account(ctx_.tx.getSenderAccount()));
     if (!txnAcct)
         // The account should never be missing from the ledger.  But if it
         // is missing then we can't very well charge it a fee, can we?
@@ -899,6 +915,12 @@ Transactor::reset(XRPAmount fee)
     // reject the transaction.
     txnAcct->setFieldAmount(sfBalance, balance - fee);
     TER const ter{consumeSeqProxy(txnAcct)};
+
+    auto const effectiveAcct =
+        view().peek(keylet::account(ctx_.tx.getAccountID(sfAccount)));
+    if (!effectiveAcct)
+        return {tefINTERNAL, beast::zero};
+
     ASSERT(
         isTesSuccess(ter), "ripple::Transactor::reset : result is tesSUCCESS");
 

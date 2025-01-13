@@ -191,6 +191,7 @@ MPTokenAuthorize::authorize(
         if (args.priorBalance < reserveCreate)
             return tecINSUFFICIENT_RESERVE;
 
+        std::cout << "args.account: " << args.account << std::endl;
         auto const mptokenKey =
             keylet::mptoken(args.mptIssuanceID, args.account);
 
