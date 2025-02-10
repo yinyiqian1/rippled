@@ -99,8 +99,6 @@ XRPNotCreated::visitEntry(
         {
             case ltACCOUNT_ROOT:
                 drops_ -= (*before)[sfBalance].xrp().drops();
-                std::cout << "before: " << (*before)[sfBalance].xrp().drops()
-                          << std::endl;
                 break;
             case ltPAYCHAN:
                 drops_ -=
@@ -120,8 +118,6 @@ XRPNotCreated::visitEntry(
         {
             case ltACCOUNT_ROOT:
                 drops_ += (*after)[sfBalance].xrp().drops();
-                std::cout << "after: " << (*after)[sfBalance].xrp().drops()
-                          << std::endl;
                 break;
             case ltPAYCHAN:
                 if (!isDelete)

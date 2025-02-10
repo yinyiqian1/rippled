@@ -62,6 +62,13 @@ public:
         return tx_.getAccountID(sfAccount);
     }
 
+    std::uint32_t
+    getEffectiveSeq() const
+    {
+        return isDelegated_ ? tx_.getDelegatingSeqProxy().value()
+                            : tx_.getSeqProxy().value();
+    }
+
     AccountID
     getAccountID(SField const& field) const
     {

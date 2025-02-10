@@ -736,7 +736,9 @@ class AccountPermission_test : public beast::unit_test::suite
 
             // now bob send a check on behalf of alice to alice,
             // this should fail as well
-            env(check::create(bob, alice, XRP(10), alice), ter(temREDUNDANT));
+            env(check::create(bob, alice, XRP(10)),
+                onBehalfOf(alice),
+                ter(temREDUNDANT));
             env.close();
             env.require(balance(alice, startBalance - drops(baseFee)));
             env.require(balance(bob, startBalance));
@@ -745,7 +747,7 @@ class AccountPermission_test : public beast::unit_test::suite
             // now bob send a check on behalf of alice to bob himself,
             // this should succeed because it's alice->bob
             uint256 const aliceToBob = keylet::check(alice, env.seq(alice)).key;
-            env(check::create(bob, bob, XRP(10), alice));
+            env(check::create(bob, bob, XRP(10)), onBehalfOf(alice));
             env.close();
             BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 1);
             BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 1);
@@ -760,7 +762,7 @@ class AccountPermission_test : public beast::unit_test::suite
             // actually alice->carol
             uint256 const aliceToCarol =
                 keylet::check(alice, env.seq(alice)).key;
-            env(check::create(bob, carol, XRP(100), alice));
+            env(check::create(bob, carol, XRP(100)), onBehalfOf(alice));
             env.close();
             BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 2);
             BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 1);
@@ -845,7 +847,7 @@ class AccountPermission_test : public beast::unit_test::suite
             // have USD
             uint256 const aliceToCarol =
                 keylet::check(alice, env.seq(alice)).key;
-            env(check::create(bob, carol, USD(10), alice));
+            env(check::create(bob, carol, USD(10)), onBehalfOf(alice));
             env.close();
             env.require(balance(alice, startBalance - drops(baseFee)));
             env.require(balance(bob, startBalance - drops(baseFee)));
@@ -910,9 +912,6 @@ class AccountPermission_test : public beast::unit_test::suite
             BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 0);
             BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 0);
             BEAST_EXPECT(check::checksOnAccount(env, carol).size() == 0);
-            std::cout << "alice own: " << ownerCount(env, alice) << "\n";
-            std::cout << "bob own: " << ownerCount(env, bob) << "\n";
-            std::cout << "carol own: " << ownerCount(env, carol) << "\n";
 
             // bob trying to cash the same check on behalf of carol should fail
             env(check::cash(bob, aliceToCarol, USD(10), carol),
@@ -920,16 +919,14 @@ class AccountPermission_test : public beast::unit_test::suite
             env.require(balance(bob, startBalance - drops(5 * baseFee)));
 
             // carol does not have permission yet.
-            env(check::create(carol, alice, USD(10), bob),
+            env(check::create(carol, alice, USD(10)),
+                onBehalfOf(bob),
                 ter(tecNO_PERMISSION));
             // fail again
-            env(check::create(carol, alice, USD(10), bob),
+            env(check::create(carol, alice, USD(10)),
+                onBehalfOf(bob),
                 ter(tecNO_PERMISSION));
             env.require(balance(carol, startBalance - drops(3 * baseFee)));
-
-            std::cout << "alice own: " << ownerCount(env, alice) << "\n";
-            std::cout << "bob own: " << ownerCount(env, bob) << "\n";
-            std::cout << "carol own: " << ownerCount(env, carol) << "\n";
 
             // bob allows carol to send CheckCreate on behalf of himself
             env(account_permission::accountPermissionSet(
@@ -937,75 +934,70 @@ class AccountPermission_test : public beast::unit_test::suite
             env.close();
             env.require(balance(bob, startBalance - drops(6 * baseFee)));
 
-            std::cout << "alice own: " << ownerCount(env, alice) << "\n";
-            std::cout << "bob own: " << ownerCount(env, bob) << "\n";
-            std::cout << "carol own: " << ownerCount(env, carol) << "\n";
-
             BEAST_EXPECT(ownerCount(env, alice) == 2);
             BEAST_EXPECT(ownerCount(env, bob) == 1);
             BEAST_EXPECT(ownerCount(env, carol) == 2);
 
             // carol writes two checks on behalf of bob to alice
-            // uint256 const checkId1 = keylet::check(bob, env.seq(bob)).key;
-            // env(check::create(carol, alice, USD(20), bob));
-            // uint256 const checkId2 = keylet::check(bob, env.seq(bob)).key;
-            // env(check::create(carol, alice, USD(10), bob));
-            // env.close();
-            // env.require(balance(alice, startBalance - drops(2 * baseFee)));
-            // env.require(balance(bob, startBalance - drops(6 * baseFee)));
-            // env.require(balance(carol, startBalance - drops(5 * baseFee)));
-            // BEAST_EXPECT(ownerCount(env, alice) == 2);
-            // BEAST_EXPECT(ownerCount(env, bob) == 3);
-            // BEAST_EXPECT(ownerCount(env, carol) == 2);
-            // BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 2);
-            // BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 2);
-            // BEAST_EXPECT(check::checksOnAccount(env, carol).size() == 0);
+            uint256 const checkId1 = keylet::check(bob, env.seq(bob)).key;
+            env(check::create(carol, alice, USD(20)), onBehalfOf(bob));
+            uint256 const checkId2 = keylet::check(bob, env.seq(bob)).key;
+            env(check::create(carol, alice, USD(10)), onBehalfOf(bob));
+            env.close();
+            env.require(balance(alice, startBalance - drops(2 * baseFee)));
+            env.require(balance(bob, startBalance - drops(6 * baseFee)));
+            env.require(balance(carol, startBalance - drops(5 * baseFee)));
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+            BEAST_EXPECT(ownerCount(env, bob) == 3);
+            BEAST_EXPECT(ownerCount(env, carol) == 2);
+            BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 2);
+            BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 2);
+            BEAST_EXPECT(check::checksOnAccount(env, carol).size() == 0);
 
             // alice allows bob to cash check on behalf of herself
-            // env(account_permission::accountPermissionSet(
-            //     alice, bob, {"CheckCash"}));
-            // env.close();
-            // env.require(balance(alice, startBalance - drops(3 * baseFee)));
-            // // alice already owns AccountPermission object for "alice
-            // delegating
-            // // bob"
-            // BEAST_EXPECT(ownerCount(env, alice) == 2);
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"CheckCash"}));
+            env.close();
+            env.require(balance(alice, startBalance - drops(3 * baseFee)));
+            // alice already owns AccountPermission object for "alice
+            // delegating bob"
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
 
-            // // alice allows bob to cancel check on behalf of herself.
-            // env(account_permission::accountPermissionSet(
-            //     alice, bob, {"CheckCash", "CheckCancel"}));
-            // env.close();
-            // env.require(balance(alice, startBalance - drops(4 * baseFee)));
-            // BEAST_EXPECT(ownerCount(env, alice) == 2);
+            // alice allows bob to cancel check on behalf of herself.
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"CheckCash", "CheckCancel"}));
+            env.close();
+            env.require(balance(alice, startBalance - drops(4 * baseFee)));
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
 
-            // env(trust(bob, USD(10)));
-            // env(pay(gw, bob, USD(10)));
-            // env.close();
-            // env.require(balance(bob, startBalance - drops(7 * baseFee)));
-            // BEAST_EXPECT(ownerCount(env, bob) == 4);
+            env(trust(bob, USD(10)));
+            env(pay(gw, bob, USD(10)));
+            env.close();
+            env.require(balance(bob, startBalance - drops(7 * baseFee)));
+            BEAST_EXPECT(ownerCount(env, bob) == 4);
 
-            // // bob cash check2 on behalf of alice
-            // env(check::cash(bob, checkId2, USD(10), alice));
-            // env.close();
-            // BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 1);
-            // BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 1);
-            // BEAST_EXPECT(check::checksOnAccount(env, carol).size() == 0);
-            // BEAST_EXPECT(ownerCount(env, alice) == 2);
-            // BEAST_EXPECT(ownerCount(env, bob) == 3);
-            // BEAST_EXPECT(ownerCount(env, carol) == 2);
-            // env.require(balance(alice, startBalance - drops(4 * baseFee)));
-            // env.require(balance(bob, startBalance - drops(8 * baseFee)));
-            // env.require(balance(carol, startBalance - drops(5 * baseFee)));
-            // env.require(balance(alice, USD(10.1)));
-            // env.require(balance(bob, USD(0)));
+            // bob cash check2 on behalf of alice
+            env(check::cash(bob, checkId2, USD(10), alice));
+            env.close();
+            BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 1);
+            BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 1);
+            BEAST_EXPECT(check::checksOnAccount(env, carol).size() == 0);
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+            BEAST_EXPECT(ownerCount(env, bob) == 3);
+            BEAST_EXPECT(ownerCount(env, carol) == 2);
+            env.require(balance(alice, startBalance - drops(4 * baseFee)));
+            env.require(balance(bob, startBalance - drops(8 * baseFee)));
+            env.require(balance(carol, startBalance - drops(5 * baseFee)));
+            env.require(balance(alice, USD(10.1)));
+            env.require(balance(bob, USD(0)));
 
-            // // bob cancel check1 on behalf of alice
-            // env(check::cancel(bob, checkId1, alice));
-            // env.close();
-            // BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 0);
-            // BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 0);
-            // BEAST_EXPECT(ownerCount(env, alice) == 2);
-            // BEAST_EXPECT(ownerCount(env, bob) == 2);
+            // bob cancel check1 on behalf of alice
+            env(check::cancel(bob, checkId1, alice));
+            env.close();
+            BEAST_EXPECT(check::checksOnAccount(env, alice).size() == 0);
+            BEAST_EXPECT(check::checksOnAccount(env, bob).size() == 0);
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+            BEAST_EXPECT(ownerCount(env, bob) == 2);
         }
     }
 
@@ -1408,7 +1400,6 @@ class AccountPermission_test : public beast::unit_test::suite
             env.close();
         }
 
-        //
         {
             const char credType[] = "abcde";
             const char uri[] = "uri";
@@ -1629,6 +1620,13 @@ class AccountPermission_test : public beast::unit_test::suite
         env.fund(XRP(1000000), alice, bob, carol);
         env.close();
 
+        STAmount aliceXrpBalance, bobXrpBalance, carolXrpBalance;
+        auto UpdateXrpBalances = [&]() {
+            aliceXrpBalance = env.balance(alice, XRP);
+            bobXrpBalance = env.balance(bob, XRP);
+            carolXrpBalance = env.balance(carol, XRP);
+        };
+
         env(account_permission::accountPermissionSet(
             alice, bob, {"EscrowCreate", "EscrowCancel", "EscrowFinish"}));
         env(account_permission::accountPermissionSet(
@@ -1650,12 +1648,11 @@ class AccountPermission_test : public beast::unit_test::suite
         // test send basic EscrowCreate, EscrowCancel, EscrowFinish transactions
         // on behalf of others
         {
-            auto aliceXrpBalance = env.balance(alice, XRP);
-            auto bobXrpBalance = env.balance(bob, XRP);
+            UpdateXrpBalances();
             auto const ts = env.now() + std::chrono::seconds(90);
             // bob creates escrow on behalf of alice, destination is carol
             // (alice->carol)
-            auto const seq1 = env.seq(bob);
+            auto const seq1 = env.seq(alice);
             env(escrow(bob, carol, XRP(1000)),
                 onBehalfOf(alice),
                 finish_time(ts));
@@ -1666,12 +1663,10 @@ class AccountPermission_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, bob) == 2);
             BEAST_EXPECT(ownerCount(env, carol) == 2);
 
-            aliceXrpBalance = env.balance(alice, XRP);
-            bobXrpBalance = env.balance(bob, XRP);
-            auto carolXrpBalance = env.balance(carol, XRP);
+            UpdateXrpBalances();
             // carol creates escrow on behalf of alice, destination is bob
             // (alice->bob)
-            auto const seq2 = env.seq(carol);
+            auto const seq2 = env.seq(alice);
             env(escrow(carol, bob, XRP(2000)),
                 onBehalfOf(alice),
                 cancel_time(ts),
@@ -1684,12 +1679,10 @@ class AccountPermission_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, bob) == 2);
             BEAST_EXPECT(ownerCount(env, carol) == 2);
 
-            aliceXrpBalance = env.balance(alice, XRP);
-            bobXrpBalance = env.balance(bob, XRP);
-            carolXrpBalance = env.balance(carol, XRP);
+            UpdateXrpBalances();
             // bob creates escrow on behalf of alice again, destination is carol
             // (alice->carol)
-            auto const seq3 = env.seq(bob);
+            auto const seq3 = env.seq(alice);
             env(escrow(bob, carol, XRP(3000)),
                 onBehalfOf(alice),
                 finish_time(ts));
@@ -1705,33 +1698,31 @@ class AccountPermission_test : public beast::unit_test::suite
             for (; env.now() <= ts; env.close())
             {
                 // alice finish seq1 on behalf of bob, the escrow's owner is
-                // alice, but bob sent it
-                env(finish(alice, bob, seq1),
+                // alice
+                env(finish(alice, alice, seq1),
                     onBehalfOf(carol),
                     fee(1500),
                     ter(tecNO_PERMISSION));
 
                 // alice cancel seq2 on behalf of bob, the escrow's owner is
-                // alice, but carol sent it
-                env(cancel(alice, carol, seq1),
+                // alice
+                env(cancel(alice, alice, seq1),
                     onBehalfOf(bob),
                     fee(1500),
                     ter(tecNO_PERMISSION));
 
                 // bob finish seq3 on behalf of carol, the escrow's owner is
-                // alice, but bob sent it
-                env(finish(bob, bob, seq3),
+                // alice
+                env(finish(bob, alice, seq3),
                     onBehalfOf(carol),
                     fee(1500),
                     ter(tecNO_PERMISSION));
             }
 
-            aliceXrpBalance = env.balance(alice, XRP);
-            bobXrpBalance = env.balance(bob, XRP);
-            carolXrpBalance = env.balance(carol, XRP);
-            // todo: here need to use sfOwner as sender to retrieve the escrow
+            UpdateXrpBalances();
             // alice finish escrow seq1 on behalf of carol.
-            env(finish(alice, bob, seq1),
+            // alice is the owner.
+            env(finish(alice, alice, seq1),
                 onBehalfOf(carol),
                 fee(1500),
                 ter(tesSUCCESS));
@@ -1741,11 +1732,9 @@ class AccountPermission_test : public beast::unit_test::suite
             env.require(balance(carol, carolXrpBalance + XRP(1000)));
             BEAST_EXPECT(ownerCount(env, alice) == 4);
 
-            aliceXrpBalance = env.balance(alice, XRP);
-            bobXrpBalance = env.balance(bob, XRP);
-            carolXrpBalance = env.balance(carol, XRP);
+            UpdateXrpBalances();
             // finish won't work for escrow seq2
-            env(finish(alice, carol, seq2),
+            env(finish(alice, alice, seq2),
                 condition(cb1),
                 fulfillment(fb1),
                 onBehalfOf(bob),
@@ -1757,11 +1746,9 @@ class AccountPermission_test : public beast::unit_test::suite
             env.require(balance(carol, carolXrpBalance));
             BEAST_EXPECT(ownerCount(env, alice) == 4);
 
-            aliceXrpBalance = env.balance(alice, XRP);
-            bobXrpBalance = env.balance(bob, XRP);
-            carolXrpBalance = env.balance(carol, XRP);
+            UpdateXrpBalances();
             // alice cancel escrow seq2 on behalf of bob
-            env(cancel(alice, carol, seq2), onBehalfOf(bob), fee(1500));
+            env(cancel(alice, alice, seq2), onBehalfOf(bob), fee(1500));
             env.close();
             env.require(
                 balance(alice, aliceXrpBalance + XRP(2000) - drops(1500)));
@@ -1769,11 +1756,9 @@ class AccountPermission_test : public beast::unit_test::suite
             env.require(balance(carol, carolXrpBalance));
             BEAST_EXPECT(ownerCount(env, alice) == 3);
 
-            aliceXrpBalance = env.balance(alice, XRP);
-            bobXrpBalance = env.balance(bob, XRP);
-            carolXrpBalance = env.balance(carol, XRP);
+            UpdateXrpBalances();
             // bob finish escrow seq3 on behalf of carol
-            env(finish(bob, bob, seq3),
+            env(finish(bob, alice, seq3),
                 onBehalfOf(carol),
                 fee(1500),
                 ter(tesSUCCESS));
@@ -1789,12 +1774,10 @@ class AccountPermission_test : public beast::unit_test::suite
             auto const fts = env.now() + std::chrono::seconds(117);
             auto const cts = env.now() + std::chrono::seconds(192);
 
-            auto aliceXrpBalance = env.balance(alice, XRP);
-            auto bobXrpBalance = env.balance(bob, XRP);
-            auto carolXrpBalance = env.balance(carol, XRP);
+            UpdateXrpBalances();
             // alice creates escrow on behalf of carol, destination is bob
             // (carol->bob)
-            auto const seq = env.seq(alice);
+            auto const seq = env.seq(carol);
             env(escrow(alice, bob, XRP(1000)),
                 onBehalfOf(carol),
                 finish_time(fts),
@@ -1803,7 +1786,7 @@ class AccountPermission_test : public beast::unit_test::suite
                 dtag(2));
             env.close();
 
-            auto const sle = env.le(keylet::escrow(alice.id(), seq));
+            auto const sle = env.le(keylet::escrow(carol.id(), seq));
             BEAST_EXPECT(sle);
             BEAST_EXPECT((*sle)[sfSourceTag] == 1);
             BEAST_EXPECT((*sle)[sfDestinationTag] == 2);
@@ -1815,23 +1798,21 @@ class AccountPermission_test : public beast::unit_test::suite
             for (; env.now() <= fts; env.close())
             {
                 // bob finish escrow seq on behalf of carol
-                env(finish(bob, alice, seq),
+                env(finish(bob, carol, seq),
                     onBehalfOf(carol),
                     fee(1500),
                     ter(tecNO_PERMISSION));
 
                 // bob cancel escrow seq on behalf of carol
-                env(cancel(bob, alice, seq),
+                env(cancel(bob, carol, seq),
                     onBehalfOf(carol),
                     fee(1500),
                     ter(tecNO_PERMISSION));
             }
 
-            aliceXrpBalance = env.balance(alice, XRP);
-            bobXrpBalance = env.balance(bob, XRP);
-            carolXrpBalance = env.balance(carol, XRP);
+            UpdateXrpBalances();
             // still can not cancel before CancelAfter time
-            env(cancel(alice, alice, seq),
+            env(cancel(alice, carol, seq),
                 onBehalfOf(bob),
                 fee(1500),
                 ter(tecNO_PERMISSION));
@@ -1841,7 +1822,7 @@ class AccountPermission_test : public beast::unit_test::suite
             env.require(balance(carol, carolXrpBalance));
 
             // can finish after FinishAfter time
-            env(finish(alice, alice, seq), onBehalfOf(bob), fee(1500));
+            env(finish(alice, carol, seq), onBehalfOf(bob), fee(1500));
             env.close();
             env.require(balance(alice, aliceXrpBalance - drops(3000)));
             env.require(balance(bob, bobXrpBalance + XRP(1000)));
@@ -2713,12 +2694,12 @@ class AccountPermission_test : public beast::unit_test::suite
         // testPermissionCRUD(all);
         // testAccountDelete(all);
         // testAMM(all);
-        // testCheck(all);  // todo
+        // testCheck(all);
         // testClawback(all);
         // testCrendentials(all);
         // testDepositPreauth(all);
         // testDID(all);
-        // testEscrow(all);  // todo
+        // testEscrow(all);
         // testMPToken(all);
         // testNFToken(all);
         // testOracle(all);

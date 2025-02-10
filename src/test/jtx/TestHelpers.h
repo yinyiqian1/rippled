@@ -453,7 +453,7 @@ namespace check {
 template <typename A>
     requires std::is_same_v<A, AccountID>
 Json::Value
-create(A const& account, A const& dest, STAmount const& sendMax, std::optional<jtx::Account> const& onBehalfOf = std::nullopt)
+create(A const& account, A const& dest, STAmount const& sendMax)
 {
     Json::Value jv;
     jv[sfAccount.jsonName] = to_string(account);
@@ -461,8 +461,6 @@ create(A const& account, A const& dest, STAmount const& sendMax, std::optional<j
     jv[sfDestination.jsonName] = to_string(dest);
     jv[sfTransactionType.jsonName] = jss::CheckCreate;
     jv[sfFlags.jsonName] = tfUniversal;
-    if (onBehalfOf)
-        jv[sfOnBehalfOf.jsonName] = to_string(onBehalfOf->id());
     return jv;
 }
 // clang-format on
@@ -471,10 +469,9 @@ inline Json::Value
 create(
     jtx::Account const& account,
     jtx::Account const& dest,
-    STAmount const& sendMax,
-    std::optional<jtx::Account> const& onBehalfOf = std::nullopt)
+    STAmount const& sendMax)
 {
-    return create(account.id(), dest.id(), sendMax, onBehalfOf);
+    return create(account.id(), dest.id(), sendMax);
 }
 
 }  // namespace check
