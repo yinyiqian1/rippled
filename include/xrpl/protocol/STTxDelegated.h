@@ -207,6 +207,12 @@ public:
     {
         return tx_.getSeqProxy();
     }
+
+    SeqProxy
+    getDelegatingSeqProxy() const
+    {
+        return tx_.getDelegatingSeqProxy();
+    }
 };
 
 }  // namespace ripple

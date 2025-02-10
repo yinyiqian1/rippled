@@ -165,6 +165,8 @@ public:
                 SeqProxy::sequence(sleAcct->getFieldU32(sfSequence));
             SeqProxy const seqProx = txn.getSeqProxy();
 
+            // todo also check delegate seq?
+
             if (seqProx.isSeq())
                 return acctSeq > seqProx;  // Remove tefPAST_SEQ
 

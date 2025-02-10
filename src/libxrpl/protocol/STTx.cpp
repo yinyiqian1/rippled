@@ -197,6 +197,21 @@ STTx::getSeqProxy() const
     return SeqProxy{SeqProxy::ticket, *ticketSeq};
 }
 
+SeqProxy
+STTx::getDelegatingSeqProxy() const
+{
+    std::uint32_t const seq{getFieldU32(sfDelegatingSeq)};
+    if (seq != 0)
+        return SeqProxy::sequence(seq);
+
+    std::optional<std::uint32_t> const ticketSeq{operator[](~sfDelegatingTicketSeq)};
+    if (!ticketSeq)
+        // No DelegatingTicketSeq specified.  Return the DelegatingSeq, whatever it is.
+        return SeqProxy::sequence(seq);
+
+    return SeqProxy{SeqProxy::ticket, *ticketSeq};
+}
+
 void
 STTx::sign(PublicKey const& publicKey, SecretKey const& secretKey)
 {

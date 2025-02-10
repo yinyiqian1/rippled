@@ -101,6 +101,9 @@ public:
     SeqProxy
     getSeqProxy() const;
 
+    SeqProxy
+    getDelegatingSeqProxy() const;
+
     boost::container::flat_set<AccountID>
     getMentionedAccounts() const;
 

@@ -67,6 +67,8 @@ JSS(Check);                // ledger type.
 JSS(ClearFlag);            // field.
 JSS(Credential);           // ledger type.
 JSS(DID);                  // ledger type.
+JSS(DelegatingTicketSeq);  // in/out: OnBehalfOf; field.
+JSS(DelegatingSeq);        // in/out: OnBehalfOf; field.
 JSS(DeliverMax);           // out: alias to Amount
 JSS(DeliverMin);           // in: TransactionSign
 JSS(Destination);          // in: TransactionSign; field.

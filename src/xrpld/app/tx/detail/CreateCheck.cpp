@@ -186,15 +186,25 @@ CreateCheck::doApply()
     // Check sequence.  For more explanation see comments in SeqProxy.h.
     // std::uint32_t const seq = ctx_.tx.getSeqProxy().value();
     std::uint32_t seq = 0;
-    if (ctx_.tx.isDelegated())
-    {
-        auto const sleAccount = view().peek(keylet::account(account_));
-        seq = sleAccount->getFieldU32(sfSequence);
+    // if (ctx_.tx.isDelegated())
+    // {
+    //     auto const sleAccount = view().peek(keylet::account(account_));
+    //     seq = sleAccount->getFieldU32(sfSequence);
+    // }
+    // else
+    // {
+    seq = ctx_.tx.getSeqProxy().value();
+    //}
+
+    // delegating seq
+    if (ctx_.tx.isDelegated()) {
+        std::uint32_t const delegatingSeq{ctx_.tx.getFieldU32(sfDelegatingSeq)};
+        if (delegatingSeq != 0)
+            seq = SeqProxy::sequence(delegatingSeq).value();
     }
-    else
-    {
-        seq = ctx_.tx.getSeqProxy().value();
-    }
+
+    std::cout << "-------account_ = " << account_ << std::endl;
+    std::cout << "-------seq = " << seq << std::endl;
 
     Keylet const checkKeylet = keylet::check(account_, seq);
     auto sleCheck = std::make_shared<SLE>(checkKeylet);
