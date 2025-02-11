@@ -65,7 +65,8 @@ MPTTester::MPTTester(Env& env, Account const& account, MPTInit const& arg)
 {
     if (arg.fund)
     {
-        env_.fund(arg.xrp, sender_);
+        env_.fund(arg.xrp, issuer_);
+        // env_.fund(arg.xrp, sender_);
         for (auto it : holders_)
             env_.fund(arg.xrpHolders, it.second);
     }
@@ -83,6 +84,7 @@ MPTTester::MPTTester(Env& env, Account const& account, MPTInit const& arg)
     }
 }
 
+// when the MPT is issued on behalf of another account
 MPTTester::MPTTester(
     Env& env,
     Account const& sender,
@@ -92,6 +94,7 @@ MPTTester::MPTTester(
     , issuer_(issuer)
     , sender_(sender)
     , holders_(makeHolders(arg.holders))
+    , close_(arg.close)
 {
 }
 
@@ -100,10 +103,9 @@ MPTTester::create(const MPTCreate& arg)
 {
     if (id_)
         Throw<std::runtime_error>("MPT can't be reused");
-    id_ = makeMptID(env_.seq(sender_), sender_);
-    std::cout << "id_ in create = " << *id_ << std::endl;
+    id_ = makeMptID(env_.seq(issuer_), issuer_);
     Json::Value jv;
-    jv[sfAccount] = sender_.human();
+    jv[sfAccount] = issuer_.human();
     jv[sfTransactionType] = jss::MPTokenIssuanceCreate;
     if (arg.assetScale)
         jv[sfAssetScale] = *arg.assetScale;
@@ -118,6 +120,7 @@ MPTTester::create(const MPTCreate& arg)
         if (*arg.onBehalfOf != issuer_)
             Throw<std::runtime_error>(
                 "create has to be sent on behalf of issuer");
+        jv[sfAccount] = sender_.human();
         jv[sfOnBehalfOf] = arg.onBehalfOf->human();
     }
     if (submit(arg, jv) != tesSUCCESS)
@@ -185,7 +188,8 @@ MPTTester::authorize(MPTAuthorize const& arg)
         jv[sfHolder] = arg.holder->human();
     if (arg.onBehalfOf)
         jv[sfOnBehalfOf] = arg.onBehalfOf->human();
-    auto const account = arg.onBehalfOf ? arg.onBehalfOf : arg.account;
+    auto const account =
+        arg.onBehalfOf ? arg.onBehalfOf : (arg.account ? arg.account : issuer_);
     if (auto const result = submit(arg, jv); result == tesSUCCESS)
     {
         // Issuer authorizes
@@ -401,7 +405,6 @@ MPTTester::mpt(std::int64_t amount) const
 {
     if (!id_)
         Throw<std::runtime_error>("MPT has not been created");
-    std::cout << "*id = " << *id_ << std::endl;
     return ripple::test::jtx::MPT(issuer_.name(), *id_)(amount);
 }
 

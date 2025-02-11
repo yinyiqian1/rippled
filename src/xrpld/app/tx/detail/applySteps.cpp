@@ -185,6 +185,12 @@ invoke_preclaim(PreclaimContext const& ctx)
                 if (result != tesSUCCESS)
                     return std::make_pair(result, permissions);
 
+                if (ctx.tx.isDelegated()) {
+                    result = T::checkDelegatingSeqProxy(ctx.view, ctx.tx.getSTTx(), ctx.j);
+                    if (result != tesSUCCESS)
+                        return std::make_pair(result, permissions);
+                }
+
                 result = T::checkPriorTxAndLastLedger(ctx);
 
                 if (result != tesSUCCESS)

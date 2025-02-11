@@ -1383,9 +1383,6 @@ rippleCreditMPT(
     auto sleIssuance = view.peek(mptID);
     if (!sleIssuance)
         return tecOBJECT_NOT_FOUND;
-    std::cout << "uSenderID: " << uSenderID << std::endl;
-    std::cout << "uReceiverID: " << uReceiverID << std::endl;
-    std::cout << "issuer: " << issuer << std::endl;
     if (uSenderID == issuer)
     {
         (*sleIssuance)[sfOutstandingAmount] += saAmount.mpt().value();
@@ -1448,10 +1445,7 @@ rippleSendMPT(
         "ripple::rippleSendMPT : sender is not receiver");
 
     // Safe to get MPT since rippleSendMPT is only called by accountSendMPT
-    std::cout << "rippleSendMPT saAmount: " << saAmount.getFullText()
-              << std::endl;
     auto const issuer = saAmount.getIssuer();
-    std::cout << "rippleSendMPT issuer: " << issuer << std::endl;
 
     auto const sle =
         view.read(keylet::mptIssuance(saAmount.get<MPTIssue>().getMptID()));
@@ -1857,16 +1851,6 @@ requireAuth(
     // if account has no MPToken, fail
     if (!sleToken)
         return tecNO_AUTH;
-
-    if (sleIssuance->getFieldU32(sfFlags) & lsfMPTRequireAuth)
-        std::cout << "sleIssuance require auth" << std::endl;
-    else
-        std::cout << "sleIssuance does not require auth" << std::endl;
-
-    if (!(sleToken->getFlags() & lsfMPTAuthorized))
-        std::cout << "sleToken unauth" << std::endl;
-    else
-        std::cout << "sleToken auth" << std::endl;
 
     // mptoken must be authorized if issuance enabled requireAuth
     if (sleIssuance->getFieldU32(sfFlags) & lsfMPTRequireAuth &&

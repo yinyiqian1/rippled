@@ -478,7 +478,6 @@ Payment::doApply()
     else if (mptDirect)
     {
         JLOG(j_.trace()) << " dstAmount=" << dstAmount.getFullText();
-        std::cout << " dstAmount=" << dstAmount.getFullText() << std::endl;
         auto const& mptIssue = dstAmount.get<MPTIssue>();
 
         if (auto const ter = requireAuth(view(), mptIssue, account_);
@@ -539,10 +538,6 @@ Payment::doApply()
             return tecPATH_PARTIAL;
 
         PaymentSandbox pv(&view());
-        std::cout << "payment account_: " << account_ << std::endl;
-        std::cout << "payment dstAccountID: " << dstAccountID << std::endl;
-        std::cout << "amountDeliver: " << amountDeliver.getFullText()
-                  << std::endl;
         auto res = accountSend(
             pv, account_, dstAccountID, amountDeliver, ctx_.journal);
         if (res == tesSUCCESS)

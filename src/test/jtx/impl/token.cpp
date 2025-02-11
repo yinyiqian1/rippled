@@ -21,6 +21,7 @@
 #include <test/jtx/token.h>
 
 #include <xrpld/app/tx/detail/NFTokenMint.h>
+#include <xrpl/basics/random.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/jss.h>
 
@@ -30,17 +31,12 @@ namespace jtx {
 namespace token {
 
 Json::Value
-mint(
-    jtx::Account const& account,
-    std::uint32_t nfTokenTaxon,
-    std::optional<jtx::Account> const& onBehalfOf)
+mint(jtx::Account const& account, std::uint32_t nfTokenTaxon)
 {
     Json::Value jv;
     jv[sfAccount.jsonName] = account.human();
     jv[sfNFTokenTaxon.jsonName] = nfTokenTaxon;
     jv[sfTransactionType.jsonName] = jss::NFTokenMint;
-    if (onBehalfOf)
-        jv[sfOnBehalfOf.jsonName] = onBehalfOf->human();
     return jv;
 }
 
@@ -235,6 +231,26 @@ Json::Value
 clearMinter(jtx::Account const& account)
 {
     return fclear(account, asfAuthorizedNFTokenMinter);
+}
+
+// returns a randomly generated string which fits
+// the constraints of a URI.  Empty strings may be returned.
+// In the empty string case do not add the URI to the nft.
+std::string
+randURI()
+{
+    std::string ret;
+
+    // About 20% of the returned strings should be empty
+    if (rand_int(4) == 0)
+        return ret;
+
+    std::size_t const strLen = rand_int(256);
+    ret.reserve(strLen);
+    for (std::size_t i = 0; i < strLen; ++i)
+        ret.push_back(rand_byte());
+
+    return ret;
 }
 
 }  // namespace token

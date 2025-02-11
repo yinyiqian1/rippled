@@ -14,15 +14,19 @@
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
+
 #include <test/jtx.h>
 #include <test/jtx/AMM.h>
 #include <test/jtx/AMMTest.h>
 #include <test/jtx/AccountPermission.h>
 #include <test/jtx/Oracle.h>
+#include <test/jtx/check.h>
 #include <test/jtx/xchain_bridge.h>
+#include <xrpl/basics/random.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/jss.h>
 #include <chrono>
+
 namespace ripple {
 namespace test {
 class AccountPermission_test : public beast::unit_test::suite
@@ -281,6 +285,123 @@ class AccountPermission_test : public beast::unit_test::suite
         // alice is not delegated any permissions by gw, should return
         // entryNotFound
         BEAST_EXPECT(response[jss::result][jss::error] == "entryNotFound");
+    }
+
+    void
+    testDelegatingSequenceAndTicket(FeatureBitset features)
+    {
+        testcase("test delegating sequence and ticket");
+        using namespace jtx;
+
+        Env env(*this, features);
+        Account alice{"alice"};
+        Account bob{"bob"};
+        Account carol{"carol"};
+        env.fund(XRP(10000), alice, bob, carol);
+        env.close();
+
+        env(account_permission::accountPermissionSet(alice, bob, {"CheckCreate"}));
+        env.close();
+
+        // add initial sequences and add sequence distance between alice and bob
+        for (int i = 0; i < 20; i++) {
+            env(check::create(alice, carol, XRP(1)));
+        }
+        env(check::create(bob, carol, XRP(1)));
+        env.close();
+        auto aliceSequence = env.seq(alice);
+        auto bobSequence = env.seq(bob);
+
+        // non existing delegating account
+        Account bad{"bad"};
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(bad), delegatingSeq(1), ter(terNO_ACCOUNT));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // missing delegating sequence
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(none), ter(temBAD_SEQUENCE));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // delegating sequence smaller than current
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(1), ter(tefPAST_SEQ));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // delegating sequence larger than current
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(100), ter(terPRE_SEQ));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // delegating sequence is consumed after transaction success
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(aliceSequence), ter(tesSUCCESS));
+        env.close();
+        aliceSequence++;
+        bobSequence++;
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // delegating sequence is consumed if transaction calls
+        // Transactor::reset(XRPAmount) and return some special tec codes
+        env(check::create(bob, carol, XRP(1)), check::expiration(env.now()), onBehalfOf(alice), delegatingSeq(autofill), ter(tecEXPIRED));
+        env.close();
+        aliceSequence++;
+        bobSequence++;
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // use both delegating sequence and delegating ticket
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(autofill), delegatingTicketSeq(aliceSequence), ter(temSEQ_AND_TICKET));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // use current or future sequence as delegating ticket
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceSequence), ter(terPRE_TICKET));
+        env.close();
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceSequence + 1), ter(terPRE_TICKET));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+        // proceed one sequence so terPRE_TICKET won't be retried
+        env(check::create(alice, carol, XRP(1)));
+        aliceSequence += 1;
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+
+        // degelating ticket is consumed after transaction success
+        env(ticket::create(alice, 1));
+        env.close();
+        auto aliceTicket = aliceSequence + 1;
+        aliceSequence += 2;
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceTicket), ter(tesSUCCESS));
+        env.close();
+        bobSequence++;
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // delegating ticket is consumed if transaction calls
+        // Transactor::reset(XRPAmount) and return some special tec codes 
+        env(ticket::create(alice, 1));
+        env.close();
+        aliceTicket = aliceSequence + 1;
+        aliceSequence += 2;
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        env(check::create(bob, carol, XRP(1)), check::expiration(env.now()), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceTicket), ter(tecEXPIRED));
+        env.close();
+        bobSequence++;
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
+
+        // use an already consumed delegating ticket
+        env(check::create(bob, carol, XRP(1)), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceTicket), ter(tefNO_TICKET));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSequence);
+        BEAST_EXPECT(env.seq(bob) == bobSequence);
     }
 
     void
@@ -1829,6 +1950,7 @@ class AccountPermission_test : public beast::unit_test::suite
             env.require(balance(carol, carolXrpBalance));
         }
 
+        // test escrow with asfDepositAuth
         {
             Account gw("gw");
             Account david{"david"};
@@ -1871,80 +1993,717 @@ class AccountPermission_test : public beast::unit_test::suite
         testcase("test MPT transactions");
         using namespace jtx;
 
+        // test create, authorize on behalf of others
         {
             Env env(*this, features);
-            XRPAmount const baseFee{env.current()->fees().base};
-            STAmount const startBalance{XRP(1000000).value()};
-
             Account alice{"alice"};
             Account bob{"bob"};
             Account carol{"carol"};
-            env.fund(startBalance, alice, bob, carol);
+            env.fund(XRP(1000000), alice, bob, carol);
             env.close();
 
-            // sender is alice, bob is issuer
+            // sender is alice, bob is the issuer
             MPTTester mpt(env, alice, bob);
             env.close();
 
-            // Account alice{"alice"};
-            // Account bob{"bob"};
-            // Account carol{"carol"};
-            // env.fund(startBalance, carol);
-            // env.close();
-
-            // sender is alice, bob is issuer
-            // MPTTester mpt(env, bob, {.holders = {alice}});
-            // env.close();
-
-            // alice can send MPTokenIssuanceCreate on behalf of bob
             env(account_permission::accountPermissionSet(
                 bob,
                 alice,
-                {"MPTokenIssuanceCreate", "MPTokenIssuanceDestroy"}));
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenAuthorize"}));
 
-            // env(account_permission::accountPermissionSet(
-            //     alice, carol, {"MPTokenAuthorize"}));
+            env(account_permission::accountPermissionSet(
+                bob,
+                carol,
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenAuthorize"}));
 
-            // use sender's account to generate id
-            auto const id = makeMptID(env.seq(alice), alice);
-            // auto const id = makeMptID(env.seq(bob), bob);
+            env(account_permission::accountPermissionSet(
+                alice, carol, {"MPTokenAuthorize"}));
+            env.close();
+
             //  bob owns AccountPermission and MPTokenIssuance
-            // mpt.create({.ownerCount = 1});
-            mpt.create({.onBehalfOf = bob});
-            // mpt.create(
-            //     {.maxAmt = maxMPTokenAmount,  // 9'223'372'036'854'775'807
-            //      .assetScale = 1,
-            //      .transferFee = 10,
-            //      .metadata = "123",
-            //      .ownerCount = 2,
-            //      //.onBehalfOf = bob,
-            //      .flags = tfMPTCanLock | tfMPTRequireAuth | tfMPTCanEscrow |
-            //          tfMPTCanTrade | tfMPTCanTransfer | tfMPTCanClawback});
+            mpt.create(
+                {.maxAmt = maxMPTokenAmount,  // 9'223'372'036'854'775'807
+                 .assetScale = 1,
+                 .transferFee = 10,
+                 .metadata = "123",
+                 .ownerCount = 3,
+                 .onBehalfOf = bob,
+                 .flags = tfMPTCanLock | tfMPTCanEscrow | tfMPTCanTrade |
+                     tfMPTCanTransfer | tfMPTCanClawback});
 
             // Get the hash for the most recent transaction.
             std::string const txHash{
                 env.tx()->getJson(JsonOptions::none)[jss::hash].asString()};
-            std::cout << env.rpc("tx", txHash) << std::endl;
 
-            // Json::Value const result = env.rpc("tx", txHash)[jss::result];
-            // BEAST_EXPECT(
-            //     result[sfMaximumAmount.getJsonName()] ==
-            //     "9223372036854775807");
-
-            // alice hold the mptoken object (carol sent on behalf of alice)
-            // mpt.authorize({.account = alice, .holderCount = 1, .onBehalfOf =
-            // alice});
-            mpt.authorize({.account = alice, .holderCount = 1});
-
-            // alice can not create mptoken again
-            // mpt.authorize({.account = alice, .err = tecDUPLICATE});
+            Json::Value const result = env.rpc("tx", txHash)[jss::result];
+            BEAST_EXPECT(
+                result[sfMaximumAmount.getJsonName()] == "9223372036854775807");
             env.close();
+
+            // carol does not have the permission to authorize on behalf of bob
+            mpt.authorize(
+                {.account = carol, .onBehalfOf = bob, .err = tecNO_PERMISSION});
+
+            // alice has permission, but bob can not hold onto his own token
+            mpt.authorize(
+                {.account = alice, .onBehalfOf = bob, .err = tecNO_PERMISSION});
+
+            // alice holds the mptoken object, sender is carol
+            mpt.authorize({.account = carol, .onBehalfOf = alice});
+
+            // alice cannot create the mptoken again
+            mpt.authorize({.account = alice, .err = tecDUPLICATE});
 
             // bob pays alice 100 tokens
             mpt.pay(bob, alice, 100);
-            // // alice destroy MPT on behalf of bob, bob will only own
-            // AccountPermission mpt.destroy({.id = id, .onBehalfOf = bob,
-            // .ownerCount = 1});
+
+            // alice hold token, can not unauthorize
+            mpt.authorize(
+                {.account = carol,
+                 .onBehalfOf = alice,
+                 .flags = tfMPTUnauthorize,
+                 .err = tecHAS_OBLIGATIONS});
+
+            // alice pays back 100 tokens
+            mpt.pay(alice, bob, 100);
+
+            // now alice can unauthorize, carol sent the request on behalf of
+            // her
+            mpt.authorize(
+                {.account = carol,
+                 .onBehalfOf = alice,
+                 .flags = tfMPTUnauthorize});
+
+            // now if alice tries to unauthorize by herself, it will fail
+            mpt.authorize(
+                {.account = alice,
+                 .holderCount = 0,
+                 .flags = tfMPTUnauthorize,
+                 .err = tecOBJECT_NOT_FOUND});
+        }
+
+        // test create, destroy, claw with tfMPTRequireAuth
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account carol{"carol"};
+            env.fund(XRP(100000), alice, bob, carol);
+            env.close();
+
+            // alice gives bob permissions
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenAuthorize"}));
+            env.close();
+
+            // sender is bob, alice is the issuer
+            MPTTester mpt(env, bob, alice);
+            env.close();
+
+            // alice owns the mptokenissuance and the account permission
+            mpt.create(
+                {.ownerCount = 2,
+                 .flags = tfMPTRequireAuth | tfMPTCanClawback,
+                 .onBehalfOf = alice});
+            env.close();
+
+            // bob creates mptoken
+            mpt.authorize({.account = bob, .holderCount = 1});
+
+            // bob authorize himself on behalf of alice
+            mpt.authorize({.account = bob, .onBehalfOf = alice, .holder = bob});
+
+            mpt.pay(alice, bob, 200);
+            mpt.claw(alice, bob, 100);
+            mpt.pay(bob, alice, 100);
+
+            // bob unauthorize bob's mptoken on behalf of alice
+            mpt.authorize(
+                {.account = bob,
+                 .holder = bob,
+                 .onBehalfOf = alice,
+                 .holderCount = 1,
+                 .flags = tfMPTUnauthorize});
+
+            // bob gives carol permissions
+            env(account_permission::accountPermissionSet(
+                bob,
+                carol,
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenAuthorize"}));
+            env.close();
+
+            mpt.authorize(
+                {.account = carol,
+                 .holderCount = 0,
+                 .onBehalfOf = bob,
+                 .flags = tfMPTUnauthorize});
+
+            // bob destroys the mpt issuance on behalf of alice
+            // issuer is alice, she still owns the account permission, so
+            // ownerCount is 1.
+            mpt.destroy({.issuer = bob, .onBehalfOf = alice, .ownerCount = 1});
+        }
+
+        // MPTokenIssuanceSet on behalf of other account
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account carol{"carol"};
+            env.fund(XRP(100000), alice, bob, carol);
+            env.close();
+
+            // alice gives bob permissions
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenAuthorize",
+                 "MPTokenIssuanceSet"}));
+            env.close();
+
+            // sender is bob, alice is the issuer
+            MPTTester mpt(env, bob, alice);
+            env.close();
+
+            // alice create with tfMPTCanLock by herself
+            // alice owns account permission and mpt issuance
+            mpt.create(
+                {.ownerCount = 2, .holderCount = 0, .flags = tfMPTCanLock});
+
+            env(account_permission::accountPermissionSet(
+                bob,
+                carol,
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenAuthorize"}));
+            env.close();
+
+            // carol send auth on behalf of bob
+            mpt.authorize(
+                {.account = carol, .onBehalfOf = bob, .holderCount = 1});
+
+            env(account_permission::accountPermissionSet(
+                alice,
+                carol,
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenIssuanceSet"}));
+            env.close();
+
+            // carol locks bob's mptoken on behalf of alice
+            mpt.set(
+                {.account = carol,
+                 .holder = bob,
+                 .onBehalfOf = alice,
+                 .flags = tfMPTLock});
+
+            // alice locks bob's mptoken again, it remains locked
+            mpt.set({.account = alice, .holder = bob, .flags = tfMPTLock});
+
+            // bob locks mptissuance on behalf of alice
+            mpt.set({.account = bob, .onBehalfOf = alice, .flags = tfMPTLock});
+
+            // carol unlock bob's mptoken on behalf of alice
+            mpt.set(
+                {.account = carol,
+                 .holder = bob,
+                 .onBehalfOf = alice,
+                 .flags = tfMPTUnlock});
+
+            // alice unlock mptissuance by herself
+            mpt.set({.account = alice, .flags = tfMPTUnlock});
+
+            // alice locks mptissuance
+            mpt.set({.account = alice, .flags = tfMPTLock});
+
+            // carol unlock mptissuance on behalf of alice
+            mpt.set(
+                {.account = carol, .onBehalfOf = alice, .flags = tfMPTUnlock});
+        }
+
+        // DepositPreauth and credential
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account carol{"carol"};
+            Account david{"david"};
+            env.fund(XRP(100000), alice, bob, carol, david);
+            env.close();
+            const char credType[] = "abcde";
+
+            // alice gives bob permissions
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"MPTokenIssuanceCreate",
+                 "MPTokenIssuanceDestroy",
+                 "MPTokenAuthorize",
+                 "MPTokenIssuanceSet"}));
+            env.close();
+
+            // sender is bob, alice is the issuer
+            MPTTester mpt(env, bob, alice);
+            env.close();
+
+            // alice owns the mptokenissuance and the account permission
+            mpt.create(
+                {.ownerCount = 2,
+                 .flags = tfMPTRequireAuth | tfMPTCanTransfer,
+                 .onBehalfOf = alice});
+            env.close();
+
+            mpt.authorize({.account = bob});
+            // bob authorize himself on behalf of alice
+            mpt.authorize({.account = bob, .onBehalfOf = alice, .holder = bob});
+
+            // bob require preauthorization
+            env(fset(bob, asfDepositAuth));
+            env.close();
+
+            // alice try to send 100 MPT to bob, not authorized
+            mpt.pay(alice, bob, 100, tecNO_PERMISSION);
+            env.close();
+
+            env(account_permission::accountPermissionSet(
+                david, carol, {"CredentialCreate", "CredentialAccept"}));
+            env.close();
+
+            env(account_permission::accountPermissionSet(
+                alice, carol, {"CredentialCreate", "CredentialAccept"}));
+            env.close();
+
+            // Create credentials
+            env(credentials::create(alice, carol, credType), onBehalfOf(david));
+            env.close();
+            env(credentials::accept(carol, david, credType), onBehalfOf(alice));
+            env.close();
+            auto const jv =
+                credentials::ledgerEntry(env, alice, david, credType);
+            std::string const credIdx = jv[jss::result][jss::index].asString();
+
+            // alice sends 100 MPT to bob with credentials, not authorized
+            mpt.pay(alice, bob, 100, tecNO_PERMISSION, {{credIdx}});
+            env.close();
+
+            // bob setup depositPreauth on behalf of carol
+            env(account_permission::accountPermissionSet(
+                bob, carol, {"DepositPreauth"}));
+            env.close();
+
+            // bob authorize credentials
+            env(deposit::authCredentials(carol, {{david, credType}}),
+                onBehalfOf(bob));
+            env.close();
+
+            // alice try to send 100 MPT to bob, not authorized
+            mpt.pay(alice, bob, 100, tecNO_PERMISSION);
+            env.close();
+
+            // alice sends 100 MPT to bob with credentials
+            mpt.pay(alice, bob, 100, tesSUCCESS, {{credIdx}});
+            env.close();
+        }
+    }
+
+    void
+    testNFToken(FeatureBitset features)
+    {
+        testcase("test NFT transactions");
+        using namespace jtx;
+        using UriTaxtonPair = std::pair<std::string, std::uint32_t>;
+
+        // test mint on behalf of another account
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            env.fund(XRP(1000000), alice, bob);
+            env.close();
+
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"NFTokenMint"}));
+
+            BEAST_EXPECT(ownerCount(env, alice) == 1);
+            BEAST_EXPECT(ownerCount(env, bob) == 0);
+
+            std::vector<UriTaxtonPair> entries;
+            for (std::size_t i = 0; i < 100; i++)
+            {
+                entries.emplace_back(
+                    token::randURI(), rand_int<std::uint32_t>());
+            }
+
+            // bob mint 100 nfts on behalf of alice
+            for (UriTaxtonPair const& entry : entries)
+            {
+                if (entry.first.empty())
+                    env(token::mint(bob, entry.second), onBehalfOf(alice));
+                else
+                    env(token::mint(bob, entry.second),
+                        token::uri(entry.first),
+                        onBehalfOf(alice));
+
+                env.close();
+            }
+
+            // bob does not own anything
+            BEAST_EXPECT(ownerCount(env, bob) == 0);
+
+            // check alice's NFTs are accurate
+            Json::Value aliceNFTs = [&env, &alice]() {
+                Json::Value params;
+                params[jss::account] = alice.human();
+                params[jss::type] = "state";
+                return env.rpc("json", "account_nfts", to_string(params));
+            }();
+
+            auto const& nfts = aliceNFTs[jss::result][jss::account_nfts];
+            BEAST_EXPECT(nfts.size() == entries.size());
+
+            std::vector<Json::Value> sortedNFTs;
+            sortedNFTs.reserve(nfts.size());
+            for (std::size_t i = 0; i < nfts.size(); ++i)
+                sortedNFTs.push_back(nfts[i]);
+            std::sort(
+                sortedNFTs.begin(),
+                sortedNFTs.end(),
+                [](Json::Value const& lhs, Json::Value const& rhs) {
+                    return lhs[jss::nft_serial] < rhs[jss::nft_serial];
+                });
+
+            for (std::size_t i = 0; i < entries.size(); ++i)
+            {
+                UriTaxtonPair const& entry = entries[i];
+                Json::Value const& ret = sortedNFTs[i];
+
+                BEAST_EXPECT(entry.second == ret[sfNFTokenTaxon.jsonName]);
+                if (entry.first.empty())
+                    BEAST_EXPECT(!ret.isMember(sfURI.jsonName));
+                else
+                    BEAST_EXPECT(strHex(entry.first) == ret[sfURI.jsonName]);
+            }
+        }
+
+        // mint on behalf of an authroized minter, create offer and accept offer
+        // on behalf of another account, burn nft on behalf of another account
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account carol{"carol"};
+            Account minter{"minter"};
+            Account const buyer{"buyer"};
+            env.fund(XRP(1000000), alice, bob, carol, minter, buyer);
+            env.close();
+
+            // alice selects minter as her minter.
+            env(token::setMinter(alice, minter));
+            env.close();
+
+            // minter authroizes bob
+            env(account_permission::accountPermissionSet(
+                minter,
+                bob,
+                {"NFTokenMint", "NFTokenBurn", "NFTokenCreateOffer"}));
+            env.close();
+
+            // buyer authroizes alice
+            env(account_permission::accountPermissionSet(
+                buyer,
+                alice,
+                {"NFTokenMint", "NFTokenBurn", "NFTokenAcceptOffer"}));
+            env.close();
+
+            BEAST_EXPECT(ownerCount(env, alice) == 0);
+            BEAST_EXPECT(ownerCount(env, bob) == 0);
+            BEAST_EXPECT(ownerCount(env, minter) == 1);
+            BEAST_EXPECT(ownerCount(env, buyer) == 1);
+
+            auto buyNFT = [&](std::uint32_t flags) {
+                uint256 const nftID{token::getNextID(env, alice, 0u, flags)};
+
+                // bob mint nft on behalf of minter
+                env(token::mint(bob, 0u),
+                    token::issuer(alice),
+                    onBehalfOf(minter),
+                    txflags(flags));
+                env.close();
+
+                uint256 const offerIndex =
+                    keylet::nftoffer(minter, env.seq(minter)).key;
+
+                // bob create offer on behalf of minter
+                env(token::createOffer(bob, nftID, XRP(0)),
+                    txflags(tfSellNFToken),
+                    onBehalfOf(minter));
+                env.close();
+
+                // bob accepts offer on behalf of buyer
+                env(token::acceptSellOffer(alice, offerIndex),
+                    onBehalfOf(buyer));
+                env.close();
+
+                return nftID;
+            };
+
+            // no flagBurnable, can only be burned by owner
+            {
+                uint256 const nftID = buyNFT(0);
+                env(token::burn(bob, nftID),
+                    onBehalfOf(alice),
+                    token::owner(buyer),
+                    ter(tecNO_PERMISSION));
+                env.close();
+                env(token::burn(bob, nftID),
+                    onBehalfOf(minter),
+                    token::owner(buyer),
+                    ter(tecNO_PERMISSION));
+                env.close();
+                BEAST_EXPECT(ownerCount(env, buyer) == 2);
+                env(token::burn(alice, nftID),
+                    token::owner(buyer),
+                    onBehalfOf(buyer));
+                env.close();
+                BEAST_EXPECT(ownerCount(env, buyer) == 1);
+            }
+
+            // enable tfBurnable, issuer alice can burn the nft
+            {
+                uint256 const nftID = buyNFT(tfBurnable);
+                env(account_permission::accountPermissionSet(
+                    alice, carol, {"NFTokenMint", "NFTokenBurn"}));
+                env.close();
+
+                BEAST_EXPECT(ownerCount(env, buyer) == 2);
+                env(token::burn(carol, nftID),
+                    onBehalfOf(alice),
+                    token::owner(buyer));
+                env.close();
+                BEAST_EXPECT(ownerCount(env, buyer) == 1);
+            }
+
+            // alice set bob as minter and carol burn nft on behalf of bob
+            {
+                uint256 const nftID = buyNFT(tfBurnable);
+                env(token::setMinter(alice, bob));
+                env.close();
+
+                env(account_permission::accountPermissionSet(
+                    bob, carol, {"NFTokenMint", "NFTokenBurn"}));
+                env.close();
+
+                BEAST_EXPECT(ownerCount(env, buyer) == 2);
+
+                // carol burn nft on behalf of bob
+                env(token::burn(carol, nftID),
+                    onBehalfOf(bob),
+                    token::owner(buyer));
+                env.close();
+                BEAST_EXPECT(ownerCount(env, buyer) == 1);
+            }
+        }
+
+        // mint with flagTransferable
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account carol{"carol"};
+            Account const buyer{"buyer"};
+            env.fund(XRP(1000000), alice, bob, carol, buyer);
+            env.close();
+
+            // alice mint nft by herself
+            uint256 const nftAliceID{
+                token::getNextID(env, alice, 0u, tfTransferable)};
+            env(token::mint(alice, 0u), txflags(tfTransferable));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 1);
+
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"NFTokenMint",
+                 "NFTokenBurn",
+                 "NFTokenCreateOffer",
+                 "NFTokenAcceptOffer"}));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+
+            env(account_permission::accountPermissionSet(
+                bob,
+                carol,
+                {"NFTokenMint",
+                 "NFTokenBurn",
+                 "NFTokenCreateOffer",
+                 "NFTokenAcceptOffer",
+                 "NFTokenCancelOffer"}));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, bob) == 1);
+
+            // bob creates offer on behalf of alice
+            uint256 const aliceSellOfferIndex =
+                keylet::nftoffer(alice, env.seq(alice)).key;
+            env(token::createOffer(bob, nftAliceID, XRP(20)),
+                onBehalfOf(alice),
+                txflags(tfSellNFToken));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 3);
+
+            // carol creates offer on behalf of bob
+            uint256 const bobBuyOfferIndex =
+                keylet::nftoffer(bob, env.seq(bob)).key;
+            env(token::createOffer(carol, nftAliceID, XRP(21)),
+                onBehalfOf(bob),
+                token::owner(alice));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, bob) == 2);
+
+            // carol accepts offer on behalf of bob
+            env(token::acceptSellOffer(carol, aliceSellOfferIndex),
+                onBehalfOf(bob));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 1);
+            BEAST_EXPECT(ownerCount(env, bob) == 3);
+            BEAST_EXPECT(ownerCount(env, carol) == 0);
+
+            // bob offers to sell the nft by himself
+            uint256 const bobSellOfferIndex =
+                keylet::nftoffer(bob, env.seq(bob)).key;
+            env(token::createOffer(bob, nftAliceID, XRP(22)),
+                txflags(tfSellNFToken));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 1);
+            BEAST_EXPECT(ownerCount(env, bob) == 4);
+            BEAST_EXPECT(ownerCount(env, carol) == 0);
+
+            env(account_permission::accountPermissionSet(
+                buyer,
+                alice,
+                {"NFTokenMint",
+                 "NFTokenBurn",
+                 "NFTokenCreateOffer",
+                 "NFTokenAcceptOffer"}));
+            env.close();
+
+            // alice accepts the offer on behalf of buyer
+            env(token::acceptSellOffer(alice, bobSellOfferIndex),
+                onBehalfOf(buyer));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 1);
+            BEAST_EXPECT(ownerCount(env, bob) == 2);
+            BEAST_EXPECT(ownerCount(env, buyer) == 2);
+
+            // alice sells the nft on behalf of buyer
+            uint256 const buyerSellOfferIndex =
+                keylet::nftoffer(buyer, env.seq(buyer)).key;
+            env(token::createOffer(alice, nftAliceID, XRP(23)),
+                onBehalfOf(buyer),
+                txflags(tfSellNFToken));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 1);
+            BEAST_EXPECT(ownerCount(env, bob) == 2);
+            BEAST_EXPECT(ownerCount(env, buyer) == 3);
+
+            // alice buys back the nft by herself
+            env(token::acceptSellOffer(alice, buyerSellOfferIndex));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+            BEAST_EXPECT(ownerCount(env, bob) == 2);
+            BEAST_EXPECT(ownerCount(env, buyer) == 1);
+
+            // carol cancel bob's offer on behalf of bob
+            env(token::cancelOffer(carol, {bobBuyOfferIndex}), onBehalfOf(bob));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+            BEAST_EXPECT(ownerCount(env, bob) == 1);
+            BEAST_EXPECT(ownerCount(env, buyer) == 1);
+        }
+
+        // buy and sell nft using IOU
+        {
+            Env env(*this, features);
+            Account gw{"gw"};
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account carol{"carol"};
+            Account const buyer{"buyer"};
+            env.fund(XRP(1000000), gw, alice, bob, carol, buyer);
+            env.close();
+
+            auto const USD = gw["USD"];
+            env(trust(alice, USD(1000)));
+            env(trust(bob, USD(1000)));
+            env.close();
+            env(pay(gw, alice, USD(500)));
+            env(pay(gw, bob, USD(500)));
+            env.close();
+
+            std::uint16_t transferFee = 5000;
+
+            // alice mint nft by herself
+            uint256 const nftAliceID{
+                token::getNextID(env, alice, 0u, tfTransferable, transferFee)};
+            env(token::mint(alice, 0u),
+                token::xferFee(transferFee),
+                txflags(tfTransferable));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"NFTokenMint",
+                 "NFTokenBurn",
+                 "NFTokenCreateOffer",
+                 "NFTokenAcceptOffer"}));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, alice) == 3);
+
+            env(account_permission::accountPermissionSet(
+                bob,
+                carol,
+                {"NFTokenMint",
+                 "NFTokenBurn",
+                 "NFTokenCreateOffer",
+                 "NFTokenAcceptOffer"}));
+            env.close();
+            BEAST_EXPECT(ownerCount(env, bob) == 2);
+
+            // bob sells the nft for 200 USD on behalf of alice
+            uint256 const aliceSellOfferIndex =
+                keylet::nftoffer(alice, env.seq(alice)).key;
+            env(token::createOffer(bob, nftAliceID, USD(200)),
+                onBehalfOf(alice),
+                txflags(tfSellNFToken));
+            env.close();
+
+            // carol accept the sell offer on behalf of bob
+            env(token::acceptSellOffer(carol, aliceSellOfferIndex),
+                onBehalfOf(bob));
+            env.close();
+
+            BEAST_EXPECT(env.balance(alice, USD) == USD(700));
+
+            // can not sell for CAD
+            env(token::createOffer(carol, nftAliceID, gw["CAD"](50)),
+                onBehalfOf(bob),
+                txflags(tfSellNFToken),
+                ter(tecNO_LINE));
+            env.close();
         }
     }
 
@@ -2680,8 +3439,9 @@ class AccountPermission_test : public beast::unit_test::suite
             std::cout << " ------ " << std::endl;
 
             // bob send himself 50XRP on behalf of alice
-            // env(pay(bob, bob, XRP(50)), onBehalfOf(alice));
-            env(pay(alice, bob, XRP(50)));
+            env(pay(bob, bob, XRP(50)), onBehalfOf(alice));
+            env.close();
+            // env(pay(alice, bob, XRP(50)));
         }
     }
 
@@ -2692,6 +3452,7 @@ class AccountPermission_test : public beast::unit_test::suite
         // testFeatureDisabled(all - featureAccountPermission);
         // testInvalidRequest(all);
         // testPermissionCRUD(all);
+        // testDelegatingSequenceAndTicket(all);
         // testAccountDelete(all);
         // testAMM(all);
         // testCheck(all);
@@ -2701,9 +3462,9 @@ class AccountPermission_test : public beast::unit_test::suite
         // testDID(all);
         // testEscrow(all);
         // testMPToken(all);
-        // testNFToken(all);
+        testNFToken(all);
         // testOracle(all);
-        testPayment(all);
+        //testPayment(all);
         // testTrustSet(all);
         // testXChain(all);
     }

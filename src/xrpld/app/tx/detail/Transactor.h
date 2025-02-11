@@ -130,6 +130,9 @@ public:
     checkSeqProxy(ReadView const& view, STTx const& tx, beast::Journal j);
 
     static NotTEC
+    checkDelegatingSeqProxy(ReadView const& view, STTx const& tx, beast::Journal j);
+
+    static NotTEC
     checkPriorTxAndLastLedger(PreclaimContext const& ctx);
 
     static TER

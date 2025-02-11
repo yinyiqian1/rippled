@@ -360,6 +360,53 @@ public:
     }
 };
 
+struct delegatingSeq
+{
+private:
+    bool manual_ = true;
+    std::optional<std::uint32_t> num_;
+
+public:
+    explicit delegatingSeq(autofill_t) : manual_(false)
+    {
+    }
+
+    explicit delegatingSeq(none_t)
+    {
+    }
+
+    explicit delegatingSeq(std::uint32_t num) : num_(num)
+    {
+    }
+
+    void
+    operator()(jtx::Env&, jtx::JTx& jtx) const
+    {
+        if (!manual_)
+            return;
+        jtx.fill_delegating_seq = false;
+        if (num_)
+            jtx[jss::DelegatingSeq] = *num_;
+    }
+};
+
+struct delegatingTicketSeq
+{
+private:
+    std::uint32_t ticketSeq_;
+
+public:
+    explicit delegatingTicketSeq(std::uint32_t ticketSeq) : ticketSeq_(ticketSeq)
+    {
+    }
+
+    void
+    operator()(jtx::Env&, jtx::JTx& jtx) const
+    {
+        jtx.jv[jss::DelegatingTicketSeq] = ticketSeq_;
+    }
+};
+
 /* Payment Channel */
 /******************************************************************************/
 

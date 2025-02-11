@@ -394,6 +394,78 @@ Transactor::checkSeqProxy(
 }
 
 NotTEC
+Transactor::checkDelegatingSeqProxy(
+    ReadView const& view,
+    STTx const& tx,
+    beast::Journal j)
+{
+    if (!tx.isFieldPresent(sfDelegatingSeq)) {
+        JLOG(j.trace()) << "applyTransaction: has no DelegatingTicketSeq";
+        return temBAD_SEQUENCE;
+    }
+
+    auto const id = tx.getAccountID(sfOnBehalfOf);
+
+    auto const sle = view.read(keylet::account(id));
+
+    if (!sle)
+    {
+        JLOG(j.trace())
+            << "applyTransaction: delay: delegating source account does not exist "
+            << toBase58(id);
+        return terNO_ACCOUNT;
+    }
+
+    SeqProxy const t_seqProx = tx.getDelegatingSeqProxy();
+    SeqProxy const a_seq = SeqProxy::sequence((*sle)[sfSequence]);
+
+    if (t_seqProx.isSeq())
+    {
+        if (tx.isFieldPresent(sfDelegatingTicketSeq) &&
+            view.rules().enabled(featureTicketBatch))
+        {
+            JLOG(j.trace()) << "applyTransaction: has both a DelegatingTicketSeq "
+                               "and a non-zero DelegatingSeq number";
+            return temSEQ_AND_TICKET;
+        }
+        if (t_seqProx != a_seq)
+        {
+            if (a_seq < t_seqProx)
+            {
+                JLOG(j.trace())
+                    << "applyTransaction: has future delegating sequence number "
+                    << "a_seq=" << a_seq << " t_seq=" << t_seqProx;
+                return terPRE_SEQ;
+            }
+            // It's an already-used sequence number.
+            JLOG(j.trace()) << "applyTransaction: has past delegating sequence number "
+                            << "a_seq=" << a_seq << " t_seq=" << t_seqProx;
+            return tefPAST_SEQ;
+        }
+    }
+    else if (t_seqProx.isTicket())
+    {
+        if (a_seq.value() <= t_seqProx.value())
+        {
+            JLOG(j.trace()) << "applyTransaction: has future ticket id "
+                            << "a_seq=" << a_seq << " t_seq=" << t_seqProx;
+            return terPRE_TICKET;
+        }
+
+        // Transaction can never succeed if the Ticket is not in the ledger.
+        if (!view.exists(keylet::ticket(id, t_seqProx)))
+        {
+            JLOG(j.trace())
+                << "applyTransaction: ticket already used or never created "
+                << "a_seq=" << a_seq << " t_seq=" << t_seqProx;
+            return tefNO_TICKET;
+        }
+    }
+
+    return tesSUCCESS;
+}
+
+NotTEC
 Transactor::checkPriorTxAndLastLedger(PreclaimContext const& ctx)
 {
     auto const id = ctx.tx.getSenderAccount();
