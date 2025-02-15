@@ -311,8 +311,10 @@ Transactor::payFee()
     // Deduct the fee, so it's not available during the transaction.
     // Will only write the account back if the transaction succeeds.
 
-    mSourceBalance -= feePaid;
-    sle->setFieldAmount(sfBalance, mSourceBalance);
+    sle->setFieldAmount(sfBalance, STAmount{(*sle)[sfBalance]}.xrp() - feePaid);
+    if (!ctx_.tx.isDelegated()) {
+        mSourceBalance -= feePaid;  
+    }
 
     // VFALCO Should we call view().rawDestroyXRP() here as well?
 
@@ -584,20 +586,19 @@ Transactor::apply()
 
     // If the transactor requires a valid account and the transaction doesn't
     // list one, preflight will have already a flagged a failure.
-    // auto const sle = view().peek(keylet::account(account_));
-    auto const sle = view().peek(keylet::account(ctx_.tx.getSenderAccount()));
-    // std::cout << "sender sequence = " << sle->getFieldU32(sfSequence)
-    //           << std::endl;
+    auto const sleEffective = view().peek(keylet::account(account_));
+    auto const sender = ctx_.tx.getSenderAccount();
+    auto const sle = view().peek(keylet::account(sender));
 
     // sle must exist except for transactions
     // that allow zero account.
     ASSERT(
-        sle != nullptr || account_ == beast::zero,
+        sle != nullptr || sender == beast::zero,
         "ripple::Transactor::apply : non-null SLE or zero account");
 
     if (sle)
     {
-        mPriorBalance = STAmount{(*sle)[sfBalance]}.xrp();
+        mPriorBalance = STAmount{(*sleEffective)[sfBalance]}.xrp();
         mSourceBalance = mPriorBalance;
 
         TER result = consumeSeqProxy(sle, ctx_.tx.getSeqProxy());
@@ -615,10 +616,10 @@ Transactor::apply()
 
         if (ctx_.tx.isDelegated())
         {
-            auto const accountDelegated = ctx_.tx.getAccountID(sfAccount);
-            auto const sleDelegated = view().peek(keylet::account(accountDelegated));
-            result = consumeSeqProxy(sleDelegated, ctx_.tx.getDelegatingSeqProxy());
-            view().update(sleDelegated);
+            auto const accountDelegating = ctx_.tx.getAccountID(sfAccount);
+            auto const sleDelegating = view().peek(keylet::account(accountDelegating));
+            result = consumeSeqProxy(sleDelegating, ctx_.tx.getDelegatingSeqProxy());
+            view().update(sleDelegating);
         }
     }
 
@@ -993,13 +994,13 @@ Transactor::reset(XRPAmount fee)
     if (ctx_.tx.isDelegated())
     {
         auto const accountDelegated = ctx_.tx.getAccountID(sfAccount);
-        auto const sleDelegated = view().peek(keylet::account(accountDelegated));
-        TER const terDelegate{consumeSeqProxy(sleDelegated, ctx_.tx.getDelegatingSeqProxy())};
+        auto const sleDelegating = view().peek(keylet::account(accountDelegated));
+        TER const terDelegate{consumeSeqProxy(sleDelegating, ctx_.tx.getDelegatingSeqProxy())};
         ASSERT(
             isTesSuccess(terDelegate), "ripple::Transactor::reset delegate seq : result is tesSUCCESS");
         
         if (isTesSuccess(terDelegate))
-            view().update(sleDelegated);
+            view().update(sleDelegating);
     }
 
     return {ter, fee};

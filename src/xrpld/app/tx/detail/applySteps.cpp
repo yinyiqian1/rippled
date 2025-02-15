@@ -207,14 +207,15 @@ invoke_preclaim(PreclaimContext const& ctx)
                 if (result != tesSUCCESS)
                     return std::make_pair(result, permissions);
 
-                if (ctx.tx.isDelegated())
+                if (ctx.tx.isDelegated()) {
                     // if this is a delegated transaction, check if the account
                     // has authorization.
                     result = T::checkPermissions(
                         ctx.view, ctx.tx.getSTTx(), permissions);
 
-                if (result != tesSUCCESS)
-                    return std::make_pair(result, permissions);
+                    if (result != tesSUCCESS)
+                        return std::make_pair(result, permissions);
+                }
             }
 
             return std::make_pair(T::preclaim(ctx), permissions);
