@@ -465,6 +465,9 @@ channel(Account const& account, Account const& dst, std::uint32_t seqProxyValue)
 STAmount
 channelBalance(ReadView const& view, uint256 const& chan);
 
+STAmount
+channelAmount(ReadView const& view, uint256 const& chan);
+
 bool
 channelExists(ReadView const& view, uint256 const& chan);
 

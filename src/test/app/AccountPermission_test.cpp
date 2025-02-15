@@ -3446,6 +3446,77 @@ class AccountPermission_test : public beast::unit_test::suite
     }
 
     void
+    testPaymentChannel(FeatureBitset features)
+    {
+        testcase("test PaymentChannel transactions");
+        using namespace jtx;
+
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account carol{"carol"};
+            env.fund(XRP(10000), alice, bob, carol);
+            env.close();
+
+            env(account_permission::accountPermissionSet(
+                alice,
+                carol,
+                {"PaymentChannelCreate",
+                 "PaymentChannelFund",
+                 "PaymentChannelClaim"}));
+
+            BEAST_EXPECT(ownerCount(env, alice) == 1);
+            BEAST_EXPECT(ownerCount(env, carol) == 0);
+
+            auto const settleDelay = std::chrono::seconds(3600);
+            auto const channelFunds = XRP(1000);
+            auto const chan = channel(alice, bob, env.seq(alice));
+
+            // carol creates channel on behalf of alice
+            // since carol will send the transaction on behalf of alice, public
+            // key is carol's key
+            auto const pkCarol = carol.pk();
+            env(create(carol, bob, channelFunds, settleDelay, pkCarol),
+                onBehalfOf(alice));
+            BEAST_EXPECT(channelExists(*env.current(), chan));
+            BEAST_EXPECT(ownerCount(env, alice) == 2);
+            BEAST_EXPECT(ownerCount(env, carol) == 0);
+
+            // carol tries to close on behalf of alice
+            env(claim(carol, chan), txflags(tfClose), onBehalfOf(alice));
+
+            // channel remains exist because of the settle delay
+            BEAST_EXPECT(channelExists(*env.current(), chan));
+            auto chanBal = channelBalance(*env.current(), chan);
+            auto chanAmt = channelAmount(*env.current(), chan);
+            BEAST_EXPECT(chanBal == XRP(0));
+            BEAST_EXPECT(chanAmt == channelFunds);
+
+            auto const preBob = env.balance(bob);
+            auto const delta = XRP(500);
+            auto const reqBal = chanBal + delta;
+            auto const authAmt = reqBal + XRP(100);
+
+            std::cout << "chanBal: " << chanBal << std::endl;
+            std::cout << "chanAmt: " << chanAmt << std::endl;
+
+            auto const sig =
+                signClaimAuth(carol.pk(), carol.sk(), chan, reqBal);
+            env(claim(bob, chan, reqBal, authAmt, Slice(sig), carol.pk()));
+            // auto const delta = XRP(500);
+            // auto const reqBal = chanBal + delta;
+            // auto const sig =
+            //     signClaimAuth(alice.pk(), alice.sk(), chan, reqBal);
+            // env(claim(bob, chan, reqBal, std::nullopt, Slice(sig), .pk()));
+            // BEAST_EXPECT(channelBalance(*env.current(), chan) == reqBal);
+            // auto const feeDrops = env.current()->fees().base;
+            // BEAST_EXPECT(env.balance(bob) == preBob + delta - feeDrops);
+            // chanBal = reqBal;
+        }
+    }
+
+    void
     run() override
     {
         FeatureBitset const all{jtx::supported_amendments()};
@@ -3462,9 +3533,10 @@ class AccountPermission_test : public beast::unit_test::suite
         // testDID(all);
         // testEscrow(all);
         // testMPToken(all);
-        testNFToken(all);
+        // testNFToken(all);
         // testOracle(all);
-        //testPayment(all);
+        // testPayment(all);
+        testPaymentChannel(all);
         // testTrustSet(all);
         // testXChain(all);
     }
