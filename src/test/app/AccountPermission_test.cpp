@@ -20,10 +20,12 @@
 #include <test/jtx/AMMTest.h>
 #include <test/jtx/AccountPermission.h>
 #include <test/jtx/Oracle.h>
+#include <test/jtx/PathSet.h>
 #include <test/jtx/check.h>
 #include <test/jtx/xchain_bridge.h>
 #include <xrpl/basics/random.h>
 #include <xrpl/protocol/Feature.h>
+#include <xrpl/protocol/PayChan.h>
 #include <xrpl/protocol/jss.h>
 #include <chrono>
 
@@ -3423,6 +3425,15 @@ class AccountPermission_test : public beast::unit_test::suite
         testcase("test PaymentChannel transactions");
         using namespace jtx;
 
+        auto signClaimAuth = [&](PublicKey const& pk,
+                                 SecretKey const& sk,
+                                 uint256 const& channel,
+                                 STAmount const& authAmt) {
+            Serializer msg;
+            serializePayChanAuthorization(msg, channel, authAmt.xrp());
+            return sign(pk, sk, msg.slice());
+        };
+
         {
             Env env(*this, features);
             Account alice{"alice"};
@@ -3441,54 +3452,60 @@ class AccountPermission_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, alice) == 1);
             BEAST_EXPECT(ownerCount(env, carol) == 0);
 
-            auto const settleDelay = std::chrono::seconds(3600);
-            auto const channelFunds = XRP(1000);
+            auto const settleDelay = std::chrono::seconds(100);
             auto const chan = channel(alice, bob, env.seq(alice));
 
             // carol creates channel on behalf of alice
             // since carol will send the transaction on behalf of alice, public
-            // key is carol's key
-            auto const pkCarol = carol.pk();
-            env(create(carol, bob, channelFunds, settleDelay, pkCarol),
+            // key is alice's key
+            auto const pkAlice = alice.pk();
+            env(create(carol, bob, XRP(1000), settleDelay, pkAlice),
                 onBehalfOf(alice));
             BEAST_EXPECT(channelExists(*env.current(), chan));
             BEAST_EXPECT(ownerCount(env, alice) == 2);
             BEAST_EXPECT(ownerCount(env, carol) == 0);
+            BEAST_EXPECT(channelBalance(*env.current(), chan) == XRP(0));
+            BEAST_EXPECT(channelAmount(*env.current(), chan) == XRP(1000));
 
-            // carol tries to close on behalf of alice
-            env(claim(carol, chan), txflags(tfClose), onBehalfOf(alice));
+            {
+                // carol fund channel on behalf of alice
+                auto const preAlice = env.balance(alice);
+                auto const preCarol = env.balance(carol);
+                env(fund(carol, chan, XRP(1000)), onBehalfOf(alice));
+                auto const feeDrops = env.current()->fees().base;
 
-            // channel remains exist because of the settle delay
-            BEAST_EXPECT(channelExists(*env.current(), chan));
-            auto chanBal = channelBalance(*env.current(), chan);
-            auto chanAmt = channelAmount(*env.current(), chan);
-            BEAST_EXPECT(chanBal == XRP(0));
-            BEAST_EXPECT(chanAmt == channelFunds);
+                BEAST_EXPECT(env.balance(alice) == preAlice - XRP(1000));
+                BEAST_EXPECT(env.balance(carol) == preCarol - feeDrops);
+                BEAST_EXPECT(channelBalance(*env.current(), chan) == XRP(0));
+                BEAST_EXPECT(channelAmount(*env.current(), chan) == XRP(2000));
+            }
 
-            auto const preBob = env.balance(bob);
-            auto const delta = XRP(500);
-            auto const reqBal = chanBal + delta;
-            auto const authAmt = reqBal + XRP(100);
+            env(account_permission::accountPermissionSet(
+                bob,
+                carol,
+                {"PaymentChannelCreate",
+                 "PaymentChannelFund",
+                 "PaymentChannelClaim"}));
 
-            std::cout << "chanBal: " << chanBal << std::endl;
-            std::cout << "chanAmt: " << chanAmt << std::endl;
-
-            auto const sig =
-                signClaimAuth(carol.pk(), carol.sk(), chan, reqBal);
-            env(claim(bob, chan, reqBal, authAmt, Slice(sig), carol.pk()));
-            // auto const delta = XRP(500);
-            // auto const reqBal = chanBal + delta;
-            // auto const sig =
-            //     signClaimAuth(alice.pk(), alice.sk(), chan, reqBal);
-            // env(claim(bob, chan, reqBal, std::nullopt, Slice(sig), .pk()));
-            // BEAST_EXPECT(channelBalance(*env.current(), chan) == reqBal);
-            // auto const feeDrops = env.current()->fees().base;
-            // BEAST_EXPECT(env.balance(bob) == preBob + delta - feeDrops);
-            // chanBal = reqBal;
-            // bob pay 50 XRP to carol on behalf of alice
-            env(pay(bob, carol, XRP(50)), onBehalfOf(alice));
-            env.close();
-
+            {
+                // carol claim on behalf of bob
+                auto preBob = env.balance(bob);
+                auto preCarol = env.balance(carol);
+                auto const delta = XRP(500);
+                auto chanBal = channelBalance(*env.current(), chan);
+                auto chanAmt = channelAmount(*env.current(), chan);
+                auto const reqBal = chanBal + delta;
+                auto const authAmt = reqBal + XRP(100);
+                auto const sig =
+                    signClaimAuth(alice.pk(), alice.sk(), chan, authAmt);
+                env(claim(carol, chan, reqBal, authAmt, Slice(sig), alice.pk()),
+                    onBehalfOf(bob));
+                BEAST_EXPECT(channelBalance(*env.current(), chan) == reqBal);
+                BEAST_EXPECT(channelAmount(*env.current(), chan) == chanAmt);
+                auto const feeDrops = env.current()->fees().base;
+                BEAST_EXPECT(env.balance(bob) == preBob + delta);
+                BEAST_EXPECT(env.balance(carol) == preCarol - feeDrops);
+            }
         }
     }
 
@@ -3627,6 +3644,76 @@ class AccountPermission_test : public beast::unit_test::suite
     }
 
     void
+    testOffer(FeatureBitset features)
+    {
+        testcase("test offer");
+        using namespace jtx;
+
+        Env env(*this, features);
+
+        auto const gw = Account{"gateway"};
+        auto const alice = Account{"alice"};
+        auto const bob = Account{"bob"};
+        auto const USD = gw["USD"];
+
+        env.fund(XRP(10000), alice, bob, gw);
+        env.close();
+        env.trust(USD(100), alice);
+        env.close();
+        env(pay(gw, alice, USD(50)));
+        env.close();
+
+        env(account_permission::accountPermissionSet(
+            alice, bob, {"OfferCreate", "OfferCancel"}));
+        env.close();
+
+        // add some distance for alice's sequence
+        for (int i = 0; i < 20; i++)
+        {
+            env(noop(alice));
+        }
+        env.close();
+
+        // create offer
+        auto aliceSeq = env.seq(alice);
+        auto bobSeq = env.seq(bob);
+        auto const offer1Seq = aliceSeq;
+        env(offer(bob, XRP(500), USD(100)), onBehalfOf(alice));
+        env.close();
+        env.require(offers(alice, 1));
+        BEAST_EXPECT(isOffer(env, alice, XRP(500), USD(100)));
+        aliceSeq++;
+        bobSeq++;
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+
+        // create offer while cancelling previous one
+        auto const offer2Seq = aliceSeq;
+        env(offer(bob, XRP(300), USD(100)),
+            json(jss::OfferSequence, offer1Seq),
+            onBehalfOf(alice));
+        env.close();
+        env.require(offers(alice, 1));
+        BEAST_EXPECT(
+            isOffer(env, alice, XRP(300), USD(100)) &&
+            !isOffer(env, alice, XRP(500), USD(100)));
+        aliceSeq++;
+        bobSeq++;
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+
+        // cancel offer
+        env(offer_cancel(bob, offer2Seq), onBehalfOf(alice));
+        env.close();
+        env.require(offers(alice, 0));
+        BEAST_EXPECT(!isOffer(env, alice, XRP(300), USD(100)));
+        aliceSeq++;
+        bobSeq++;
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+    }
+
+    void
     run() override
     {
         FeatureBitset const all{jtx::supported_amendments()};
@@ -3647,10 +3734,16 @@ class AccountPermission_test : public beast::unit_test::suite
         // testOracle(all);
         // testPayment(all);
         testPaymentChannel(all);
+<<<<<<< HEAD
         testPayment(all);
         testPaymentGranular(all);
+=======
+        // testPayment(all);
+        // testPaymentGranular(all);
+>>>>>>> refs/remotes/origin/accountpermission_test
         // testTrustSet(all);
         // testXChain(all);
+        testOffer(all);
     }
 };
 BEAST_DEFINE_TESTSUITE(AccountPermission, app, ripple);
