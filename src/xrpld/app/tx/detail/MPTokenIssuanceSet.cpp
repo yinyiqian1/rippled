@@ -109,9 +109,9 @@ MPTokenIssuanceSet::doApply()
     {
         // if permissions is not empty, granular delegation is happening.
         if (lock && !ctx_.permissions.contains(MPTokenIssuanceLock))
-            return terNO_AUTH;
+            return tecNO_PERMISSION;
         if (unlock && !ctx_.permissions.contains(MPTokenIssuanceUnlock))
-            return terNO_AUTH;
+            return tecNO_PERMISSION;
     }
 
     if (lock)

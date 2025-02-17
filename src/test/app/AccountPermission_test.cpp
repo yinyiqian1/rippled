@@ -388,7 +388,7 @@ class AccountPermission_test : public beast::unit_test::suite
         BEAST_EXPECT(env.seq(bob) == bobSequence);
 
         // delegating ticket is consumed if transaction calls
-        // Transactor::reset(XRPAmount) and return some special tec codes 
+        // Transactor::reset(XRPAmount) and return some special tec codes
         env(ticket::create(alice, 1));
         env.close();
         aliceTicket = aliceSequence + 1;
@@ -819,8 +819,8 @@ class AccountPermission_test : public beast::unit_test::suite
             // but bob can bid onbehalf of alice who is the lp
             env(amm.bid(
                 {.account = bob,
-                 .onBehalfOf = alice,
-                 .authAccounts = {alice, bob, carol}}));
+                 .authAccounts = {alice, bob, carol},
+                 .onBehalfOf = alice}));
             env.close();
             BEAST_EXPECT(amm.expectAuctionSlot(0, 0, IOUAmount(1155, -1)));
             BEAST_EXPECT(amm.expectAuctionSlot({alice, bob, carol}));
@@ -2034,9 +2034,9 @@ class AccountPermission_test : public beast::unit_test::suite
                  .transferFee = 10,
                  .metadata = "123",
                  .ownerCount = 3,
-                 .onBehalfOf = bob,
                  .flags = tfMPTCanLock | tfMPTCanEscrow | tfMPTCanTrade |
-                     tfMPTCanTransfer | tfMPTCanClawback});
+                     tfMPTCanTransfer | tfMPTCanClawback,
+                 .onBehalfOf = bob});
 
             // Get the hash for the most recent transaction.
             std::string const txHash{
@@ -2067,8 +2067,8 @@ class AccountPermission_test : public beast::unit_test::suite
             // alice hold token, can not unauthorize
             mpt.authorize(
                 {.account = carol,
-                 .onBehalfOf = alice,
                  .flags = tfMPTUnauthorize,
+                 .onBehalfOf = alice,
                  .err = tecHAS_OBLIGATIONS});
 
             // alice pays back 100 tokens
@@ -2078,8 +2078,8 @@ class AccountPermission_test : public beast::unit_test::suite
             // her
             mpt.authorize(
                 {.account = carol,
-                 .onBehalfOf = alice,
-                 .flags = tfMPTUnauthorize});
+                 .flags = tfMPTUnauthorize,
+                 .onBehalfOf = alice});
 
             // now if alice tries to unauthorize by herself, it will fail
             mpt.authorize(
@@ -2122,7 +2122,7 @@ class AccountPermission_test : public beast::unit_test::suite
             mpt.authorize({.account = bob, .holderCount = 1});
 
             // bob authorize himself on behalf of alice
-            mpt.authorize({.account = bob, .onBehalfOf = alice, .holder = bob});
+            mpt.authorize({.account = bob, .holder = bob, .onBehalfOf = alice});
 
             mpt.pay(alice, bob, 200);
             mpt.claw(alice, bob, 100);
@@ -2132,9 +2132,9 @@ class AccountPermission_test : public beast::unit_test::suite
             mpt.authorize(
                 {.account = bob,
                  .holder = bob,
-                 .onBehalfOf = alice,
                  .holderCount = 1,
-                 .flags = tfMPTUnauthorize});
+                 .flags = tfMPTUnauthorize,
+                 .onBehalfOf = alice});
 
             // bob gives carol permissions
             env(account_permission::accountPermissionSet(
@@ -2148,13 +2148,13 @@ class AccountPermission_test : public beast::unit_test::suite
             mpt.authorize(
                 {.account = carol,
                  .holderCount = 0,
-                 .onBehalfOf = bob,
-                 .flags = tfMPTUnauthorize});
+                 .flags = tfMPTUnauthorize,
+                 .onBehalfOf = bob});
 
             // bob destroys the mpt issuance on behalf of alice
             // issuer is alice, she still owns the account permission, so
             // ownerCount is 1.
-            mpt.destroy({.issuer = bob, .onBehalfOf = alice, .ownerCount = 1});
+            mpt.destroy({.issuer = bob, .ownerCount = 1, .onBehalfOf = alice});
         }
 
         // MPTokenIssuanceSet on behalf of other account
@@ -2195,7 +2195,7 @@ class AccountPermission_test : public beast::unit_test::suite
 
             // carol send auth on behalf of bob
             mpt.authorize(
-                {.account = carol, .onBehalfOf = bob, .holderCount = 1});
+                {.account = carol, .holderCount = 1, .onBehalfOf = bob});
 
             env(account_permission::accountPermissionSet(
                 alice,
@@ -2209,21 +2209,21 @@ class AccountPermission_test : public beast::unit_test::suite
             mpt.set(
                 {.account = carol,
                  .holder = bob,
-                 .onBehalfOf = alice,
-                 .flags = tfMPTLock});
+                 .flags = tfMPTLock,
+                 .onBehalfOf = alice});
 
             // alice locks bob's mptoken again, it remains locked
             mpt.set({.account = alice, .holder = bob, .flags = tfMPTLock});
 
             // bob locks mptissuance on behalf of alice
-            mpt.set({.account = bob, .onBehalfOf = alice, .flags = tfMPTLock});
+            mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice});
 
             // carol unlock bob's mptoken on behalf of alice
             mpt.set(
                 {.account = carol,
                  .holder = bob,
-                 .onBehalfOf = alice,
-                 .flags = tfMPTUnlock});
+                 .flags = tfMPTUnlock,
+                 .onBehalfOf = alice});
 
             // alice unlock mptissuance by herself
             mpt.set({.account = alice, .flags = tfMPTUnlock});
@@ -2233,7 +2233,7 @@ class AccountPermission_test : public beast::unit_test::suite
 
             // carol unlock mptissuance on behalf of alice
             mpt.set(
-                {.account = carol, .onBehalfOf = alice, .flags = tfMPTUnlock});
+                {.account = carol, .flags = tfMPTUnlock, .onBehalfOf = alice});
         }
 
         // DepositPreauth and credential
@@ -2270,7 +2270,7 @@ class AccountPermission_test : public beast::unit_test::suite
 
             mpt.authorize({.account = bob});
             // bob authorize himself on behalf of alice
-            mpt.authorize({.account = bob, .onBehalfOf = alice, .holder = bob});
+            mpt.authorize({.account = bob, .holder = bob, .onBehalfOf = alice});
 
             // bob require preauthorization
             env(fset(bob, asfDepositAuth));
@@ -2319,6 +2319,12 @@ class AccountPermission_test : public beast::unit_test::suite
             mpt.pay(alice, bob, 100, tesSUCCESS, {{credIdx}});
             env.close();
         }
+    }
+
+    void
+    testMPTokenIssuanceSetGranular(FeatureBitset features)
+    {
+
     }
 
     void
@@ -2730,9 +2736,9 @@ class AccountPermission_test : public beast::unit_test::suite
         // alice create oracle on behalf of bob
         oracle::Oracle oracle(
             env,
-            {.sender = alice,
+            {.series = {{"XRP", "USD", 740, 1}},
              .onBehalfOf = bob,
-             .series = {{"XRP", "USD", 740, 1}}});
+             .sender = alice});
         BEAST_EXPECT(oracle.exists());
         BEAST_EXPECT(ownerCount(env, alice) == 0);
         BEAST_EXPECT(ownerCount(env, bob) == 2);
@@ -2742,24 +2748,24 @@ class AccountPermission_test : public beast::unit_test::suite
         BEAST_EXPECT(ownerCount(env, bob) == 1);
 
         // alice create oracle2 on behalf of bob
-        oracle::Oracle oracle2(env, {.sender = alice, .onBehalfOf = bob});
+        oracle::Oracle oracle2(env, {.onBehalfOf = bob, .sender = alice});
         BEAST_EXPECT(oracle2.exists());
         BEAST_EXPECT(ownerCount(env, alice) == 0);
         BEAST_EXPECT(ownerCount(env, bob) == 2);
 
         // alice updates oracle2 on behalf of bob
         oracle2.set(oracle::UpdateArg{
-            .sender = alice,
+            .series = {{"XRP", "USD", 740, 2}},
             .onBehalfOf = bob,
-            .series = {{"XRP", "USD", 740, 2}}});
+            .sender = alice});
         BEAST_EXPECT(oracle2.expectPrice({{"XRP", "USD", 740, 2}}));
         BEAST_EXPECT(ownerCount(env, alice) == 0);
         BEAST_EXPECT(ownerCount(env, bob) == 2);
 
         oracle2.set(oracle::UpdateArg{
-            .sender = alice,
+            .series = {{"XRP", "EUR", 700, 2}},
             .onBehalfOf = bob,
-            .series = {{"XRP", "EUR", 700, 2}}});
+            .sender = alice});
         BEAST_EXPECT(oracle2.expectPrice(
             {{"XRP", "USD", 0, 0}, {"XRP", "EUR", 700, 2}}));
         BEAST_EXPECT(ownerCount(env, bob) == 2);
@@ -2773,28 +2779,29 @@ class AccountPermission_test : public beast::unit_test::suite
 
         // alice updates oracle2 on behalf of bob
         oracle2.set(oracle::UpdateArg{
-            .sender = alice,
-            .onBehalfOf = bob,
             .series = {
                 {"BTC", "USD", 741, 2},
                 {"ETH", "EUR", 710, 2},
                 {"YAN", "EUR", 710, 2},
                 {"CAN", "EUR", 710, 2},
-            }});
+            },
+            .onBehalfOf = bob,
+            .sender = alice});
         BEAST_EXPECT(ownerCount(env, bob) == 3);
 
         oracle2.set(oracle::UpdateArg{
             .series = {{"BTC", "USD", std::nullopt, std::nullopt}}});
 
         oracle2.set(oracle::UpdateArg{
-            .sender = alice,
-            .onBehalfOf = bob,
             .series = {
                 {"XRP", "USD", 742, 2},
                 {"XRP", "EUR", 711, 2},
                 {"ETH", "EUR", std::nullopt, std::nullopt},
                 {"YAN", "EUR", std::nullopt, std::nullopt},
-                {"CAN", "EUR", std::nullopt, std::nullopt}}});
+                {"CAN", "EUR", std::nullopt, std::nullopt}
+            },
+            .onBehalfOf = bob,
+            .sender = alice});
         BEAST_EXPECT(oracle2.expectPrice(
             {{"XRP", "USD", 742, 2}, {"XRP", "EUR", 711, 2}}));
 
@@ -3522,9 +3529,9 @@ class AccountPermission_test : public beast::unit_test::suite
         Account alice{"alice"};
         Account bob{"bob"};
         Account carol{"carol"};
-        
+
         XRPAmount const baseFee{env.current()->fees().base};
-        
+
         // use different initial amout to distinguish the source balance
         env.fund(XRP(10000), alice);
         env.fund(XRP(20000), bob);
@@ -3561,13 +3568,13 @@ class AccountPermission_test : public beast::unit_test::suite
         // bob pay 50 XRP to alice self on behalf of alice
         env(pay(bob, alice, XRP(50)), onBehalfOf(alice), ter(temREDUNDANT));
         env.close();
-        
+
         // final balance check
         env.require(balance(alice, aliceBalance));
         env.require(balance(bob, bobBalance));
         env.require(balance(carol, carolBalance));
     }
-    
+
     void
     testPaymentGranular(FeatureBitset features)
     {
@@ -3579,14 +3586,14 @@ class AccountPermission_test : public beast::unit_test::suite
         Account bob{"bob"};
         Account gw{"gateway"};
         auto const USD = gw["USD"];
-        
+
         // use different initial amout to distinguish the source balance
         env.fund(XRP(10000), alice);
         env.fund(XRP(20000), bob);
         env.fund(XRP(40000), gw);
         env.trust(USD(200), alice);
         env.close();
-        
+
         XRPAmount const baseFee{env.current()->fees().base};
 
         auto aliceBalance = env.balance(alice, XRP);
@@ -3715,7 +3722,7 @@ class AccountPermission_test : public beast::unit_test::suite
         BEAST_EXPECT(env.seq(bob) == bobSeq);
     }
 
-    void 
+    void
     testTicket(FeatureBitset features)
     {
         testcase("test ticket");
@@ -3753,7 +3760,7 @@ class AccountPermission_test : public beast::unit_test::suite
         BEAST_EXPECT(env.seq(bob) == bobSeq);
         env.require(owners(alice, 2), tickets(alice, 1));
         env.require(owners(bob, 0), tickets(bob, 0));
-        
+
         // use ticket to create tickets
         env(ticket::create(bob, 3), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceTicket1));
         env.close();
@@ -3796,7 +3803,7 @@ class AccountPermission_test : public beast::unit_test::suite
         BEAST_EXPECT(env.seq(bob) == bobSeq);
         env.require(owners(alice, 2), tickets(alice, 1));
         env.require(owners(bob, 1), tickets(bob, 1));
-        
+
         // use ticket to create tickets with delegated ticket
         env(ticket::create(bob, 3), ticket::use(bobTicket2), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceTicket1));
         env.close();
@@ -3851,7 +3858,7 @@ class AccountPermission_test : public beast::unit_test::suite
         env(trust(bob, gw["USD"](50), tfClearFreeze), qualityInPercent(90), onBehalfOf(alice), ter(tecNO_PERMISSION));
         env(trust(bob, gw["USD"](50), tfClearFreeze), qualityOutPercent(120), onBehalfOf(alice), ter(tecNO_PERMISSION));
         env.close();
-        
+
         // supported flags with wrong permission
         env(trust(bob, gw["USD"](50), tfSetfAuth), onBehalfOf(alice), ter(tecNO_PERMISSION));
         env(trust(bob, gw["USD"](50), tfSetFreeze), onBehalfOf(alice), ter(tecNO_PERMISSION));
@@ -4134,13 +4141,13 @@ class AccountPermission_test : public beast::unit_test::suite
         // testDID(all);
         // testEscrow(all);
         // testMPToken(all);
+        testMPTokenIssuanceSetGranular(all);
         // testNFToken(all);
         testOracle(all);
         // testPayment(all);
         // testPaymentChannel(all);
         // testPayment(all);
         // testPaymentGranular(all);
-        // testPayment(all);
         // testTrustSet(all);
         // testTrustSetGranular(all);
         // testAccountSetGranular(all);
