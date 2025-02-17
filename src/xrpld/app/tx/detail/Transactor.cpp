@@ -498,7 +498,7 @@ Transactor::checkPriorTxAndLastLedger(PreclaimContext const& ctx)
 }
 
 TER
-Transactor::consumeSeqProxy(SLE::pointer const& sleAccount, SeqProxy const &seqProx)
+Transactor::consumeSeqProxy(AccountID const& account, SLE::pointer const& sleAccount, SeqProxy const& seqProx)
 {
     ASSERT(
         sleAccount != nullptr,
@@ -511,9 +511,8 @@ Transactor::consumeSeqProxy(SLE::pointer const& sleAccount, SeqProxy const &seqP
         sleAccount->setFieldU32(sfSequence, seqProx.value() + 1);
         return tesSUCCESS;
     }
-    // todo: account_ should changed to sender ?
     return ticketDelete(
-        view(), account_, getTicketIndex(account_, seqProx), j_);
+        view(), account, getTicketIndex(account, seqProx), j_);
 }
 
 // Remove a single Ticket from the ledger.
@@ -601,7 +600,7 @@ Transactor::apply()
         mPriorBalance = STAmount{(*sleEffective)[sfBalance]}.xrp();
         mSourceBalance = mPriorBalance;
 
-        TER result = consumeSeqProxy(sle, ctx_.tx.getSeqProxy());
+        TER result = consumeSeqProxy(sender, sle, ctx_.tx.getSeqProxy());
         if (result != tesSUCCESS)
             return result;
 
@@ -618,7 +617,7 @@ Transactor::apply()
         {
             auto const accountDelegating = ctx_.tx.getAccountID(sfAccount);
             auto const sleDelegating = view().peek(keylet::account(accountDelegating));
-            result = consumeSeqProxy(sleDelegating, ctx_.tx.getDelegatingSeqProxy());
+            result = consumeSeqProxy(accountDelegating, sleDelegating, ctx_.tx.getDelegatingSeqProxy());
             view().update(sleDelegating);
         }
     }
@@ -958,8 +957,9 @@ Transactor::reset(XRPAmount fee)
 {
     ctx_.discard();
 
+    auto sender = ctx_.tx.getSenderAccount();
     auto const txnAcct =
-        view().peek(keylet::account(ctx_.tx.getSenderAccount()));
+        view().peek(keylet::account(sender));
     if (!txnAcct)
         // The account should never be missing from the ledger.  But if it
         // is missing then we can't very well charge it a fee, can we?
@@ -984,7 +984,7 @@ Transactor::reset(XRPAmount fee)
     // then the ledger is corrupted.  Rather than make things worse we
     // reject the transaction.
     txnAcct->setFieldAmount(sfBalance, balance - fee);
-    TER const ter{consumeSeqProxy(txnAcct, ctx_.tx.getSeqProxy())};
+    TER const ter{consumeSeqProxy(sender, txnAcct, ctx_.tx.getSeqProxy())};
     ASSERT(
         isTesSuccess(ter), "ripple::Transactor::reset : result is tesSUCCESS");
 
@@ -993,9 +993,9 @@ Transactor::reset(XRPAmount fee)
 
     if (ctx_.tx.isDelegated())
     {
-        auto const accountDelegated = ctx_.tx.getAccountID(sfAccount);
-        auto const sleDelegating = view().peek(keylet::account(accountDelegated));
-        TER const terDelegate{consumeSeqProxy(sleDelegating, ctx_.tx.getDelegatingSeqProxy())};
+        auto const accountDelegating = ctx_.tx.getAccountID(sfAccount);
+        auto const sleDelegating = view().peek(keylet::account(accountDelegating));
+        TER const terDelegate{consumeSeqProxy(accountDelegating, sleDelegating, ctx_.tx.getDelegatingSeqProxy())};
         ASSERT(
             isTesSuccess(terDelegate), "ripple::Transactor::reset delegate seq : result is tesSUCCESS");
         

@@ -251,13 +251,13 @@ SetTrust::doApply()
         // Currently we only support TrustlineAuthorize, TrustlineFreeze and
         // TrustlineUnfreeze granular permission.
         if (bSetNoRipple || bClearNoRipple || bQualityIn || bQualityOut)
-            return terNO_AUTH;
+            return tecNO_PERMISSION;
         if (bSetAuth && !ctx_.permissions.contains(TrustlineAuthorize))
-            return terNO_AUTH;
+            return tecNO_PERMISSION;
         if (bSetFreeze && !ctx_.permissions.contains(TrustlineFreeze))
-            return terNO_AUTH;
+            return tecNO_PERMISSION;
         if (bClearFreeze && !ctx_.permissions.contains(TrustlineUnfreeze))
-            return terNO_AUTH;
+            return tecNO_PERMISSION;
     }
 
     auto viewJ = ctx_.app.journal("View");
@@ -327,7 +327,7 @@ SetTrust::doApply()
                 ? sleRippleState->getFieldAmount(sfHighLimit)
                 : sleRippleState->getFieldAmount(sfLowLimit);
             if (curLimit != saLimitAllow)
-                return tecNO_AUTH;
+                return tecNO_PERMISSION;
         }
 
         sleRippleState->setFieldAmount(

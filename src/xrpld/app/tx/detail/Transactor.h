@@ -201,7 +201,7 @@ private:
     reset(XRPAmount fee);
 
     TER
-    consumeSeqProxy(SLE::pointer const& sleAccount, SeqProxy const &seqProx);
+    consumeSeqProxy(AccountID const& account, SLE::pointer const& sleAccount, SeqProxy const& seqProx);
     TER
     payFee();
     static NotTEC

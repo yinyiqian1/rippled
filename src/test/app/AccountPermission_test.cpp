@@ -26,6 +26,7 @@
 #include <xrpl/basics/random.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/PayChan.h>
+#include <xrpl/protocol/Quality.h>
 #include <xrpl/protocol/jss.h>
 #include <chrono>
 
@@ -3713,6 +3714,176 @@ class AccountPermission_test : public beast::unit_test::suite
         BEAST_EXPECT(env.seq(bob) == bobSeq);
     }
 
+    void 
+    testTicket(FeatureBitset features)
+    {
+        testcase("test ticket");
+        using namespace jtx;
+
+        Env env(*this, features);
+        auto const alice = Account{"alice"};
+        auto const bob = Account{"bob"};
+        env.fund(XRP(10000), alice, bob);
+        env.close();
+
+        env(account_permission::accountPermissionSet(
+            alice, bob, {"TicketCreate"}));
+        env.close();
+        env.require(owners(alice, 1), tickets(alice, 0));
+        env.require(owners(bob, 0), tickets(bob, 0));
+
+        // add some distance for alice's sequence
+        for (int i = 0; i < 20; i++)
+        {
+            env(noop(alice));
+        }
+        env.close();
+
+        auto aliceSeq = env.seq(alice);
+        auto bobSeq = env.seq(bob);
+
+        // create ticket
+        env(ticket::create(bob, 1), onBehalfOf(alice));
+        env.close();
+        auto aliceTicket1 = aliceSeq + 1;
+        aliceSeq += 2;
+        bobSeq++;
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+        env.require(owners(alice, 2), tickets(alice, 1));
+        env.require(owners(bob, 0), tickets(bob, 0));
+        
+        // use ticket to create tickets
+        env(ticket::create(bob, 3), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceTicket1));
+        env.close();
+        auto aliceTicket2 = aliceSeq;
+        auto aliceTicket3 = aliceSeq + 1;
+        auto aliceTicket4 = aliceSeq + 2;
+        aliceSeq += 3;
+        bobSeq++;
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+        env.require(owners(alice, 4), tickets(alice, 3));
+        env.require(owners(bob, 0), tickets(bob, 0));
+
+        // use tickets
+        env(noop(alice), ticket::use(aliceTicket2));
+        env(noop(alice), ticket::use(aliceTicket3));
+        env(noop(alice), ticket::use(aliceTicket4));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+        env.require(owners(alice, 1), tickets(alice, 0));
+        env.require(owners(bob, 0), tickets(bob, 0));
+
+
+        // create ticket for delegated account
+        env(ticket::create(bob, 2));
+        env.close();
+        auto bobTicket1 = bobSeq + 1;
+        auto bobTicket2 = bobSeq + 2;
+        bobSeq += 3;
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+        env.require(owners(bob, 2), tickets(bob, 2));
+
+        // create ticket with delegated ticket
+        env(ticket::create(bob, 1), ticket::use(bobTicket1), onBehalfOf(alice));
+        env.close();
+        aliceTicket1 = aliceSeq + 1;
+        aliceSeq += 2;
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+        env.require(owners(alice, 2), tickets(alice, 1));
+        env.require(owners(bob, 1), tickets(bob, 1));
+        
+        // use ticket to create tickets with delegated ticket
+        env(ticket::create(bob, 3), ticket::use(bobTicket2), onBehalfOf(alice), delegatingSeq(0), delegatingTicketSeq(aliceTicket1));
+        env.close();
+        aliceTicket2 = aliceSeq;
+        aliceTicket3 = aliceSeq + 1;
+        aliceTicket4 = aliceSeq + 2;
+        aliceSeq += 3;
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+        env.require(owners(alice, 4), tickets(alice, 3));
+        env.require(owners(bob, 0), tickets(bob, 0));
+
+        // use tickets
+        env(noop(alice), ticket::use(aliceTicket2));
+        env(noop(alice), ticket::use(aliceTicket3));
+        env(noop(alice), ticket::use(aliceTicket4));
+        env.close();
+        BEAST_EXPECT(env.seq(alice) == aliceSeq);
+        BEAST_EXPECT(env.seq(bob) == bobSeq);
+        env.require(owners(alice, 1), tickets(alice, 0));
+        env.require(owners(bob, 0), tickets(bob, 0));
+    }
+
+    void
+    testTrustSetGranular(FeatureBitset features)
+    {
+        testcase("test TrustSet granular");
+        using namespace jtx;
+
+        Env env(*this, features);
+        Account gw{"gw"};
+        Account alice{"alice"};
+        Account bob{"bob"};
+        env.fund(XRP(10000), gw, alice, bob);
+        env(fset(alice, asfRequireAuth));
+        env.close();
+
+        // cannot create new trust line with granular permission
+        env(account_permission::accountPermissionSet(
+            alice, bob, {"TrustlineUnfreeze"}));
+        env.close();
+        env(trust(bob, gw["USD"](50), 0), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env.close();
+
+        // prepare trust line
+        env(trust(alice, gw["USD"](50), 0));
+        env.close();
+
+        // unsupported flags with granular permission
+        env(trust(bob, gw["USD"](50), tfSetNoRipple), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env(trust(bob, gw["USD"](50), tfClearNoRipple), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env(trust(bob, gw["USD"](50), tfClearFreeze), qualityInPercent(90), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env(trust(bob, gw["USD"](50), tfClearFreeze), qualityOutPercent(120), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env.close();
+        
+        // supported flags with wrong permission
+        env(trust(bob, gw["USD"](50), tfSetfAuth), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env(trust(bob, gw["USD"](50), tfSetFreeze), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env.close();
+        env(account_permission::accountPermissionSet(
+            alice, bob, {"TrustlineAuthorize"}));
+        env.close();
+        env(trust(bob, gw["USD"](50), tfClearFreeze), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env.close();
+
+        // supported flags with correct permission
+        env(trust(bob, gw["USD"](50), tfSetfAuth), onBehalfOf(alice));
+        env.close();
+        env(account_permission::accountPermissionSet(
+            alice, bob, {"TrustlineFreeze"}));
+        env.close();
+        env(trust(bob, gw["USD"](50), tfSetFreeze), onBehalfOf(alice));
+        env.close();
+        env(account_permission::accountPermissionSet(
+            alice, bob, {"TrustlineUnfreeze"}));
+        env.close();
+        env(trust(bob, gw["USD"](50), tfClearFreeze), onBehalfOf(alice));
+        env.close();
+
+        // cannot update LimitAmout with granular permission, both high and low account
+        env(trust(gw, alice["USD"](50), 0));
+        env(account_permission::accountPermissionSet(
+            gw, bob, {"TrustlineUnfreeze"}));
+        env.close();
+        env(trust(bob, gw["USD"](100)), onBehalfOf(alice), ter(tecNO_PERMISSION));
+        env(trust(bob, alice["USD"](100)), onBehalfOf(gw), ter(tecNO_PERMISSION));
+    }
+
     void
     run() override
     {
@@ -3742,8 +3913,10 @@ class AccountPermission_test : public beast::unit_test::suite
         // testPaymentGranular(all);
 >>>>>>> refs/remotes/origin/accountpermission_test
         // testTrustSet(all);
+        testTrustSetGranular(all);
         // testXChain(all);
         testOffer(all);
+        testTicket(all);
     }
 };
 BEAST_DEFINE_TESTSUITE(AccountPermission, app, ripple);
