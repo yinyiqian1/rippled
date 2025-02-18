@@ -3621,75 +3621,133 @@ class AccountPermission_test : public beast::unit_test::suite
         testcase("test payment granular");
         using namespace jtx;
 
-        Env env(*this, features);
-        Account alice{"alice"};
-        Account bob{"bob"};
-        Account gw{"gateway"};
-        auto const USD = gw["USD"];
+        // test PaymentMint and PaymentBurn
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account gw{"gateway"};
+            auto const USD = gw["USD"];
 
-        // use different initial amout to distinguish the source balance
-        env.fund(XRP(10000), alice);
-        env.fund(XRP(20000), bob);
-        env.fund(XRP(40000), gw);
-        env.trust(USD(200), alice);
-        env.close();
+            env.fund(XRP(10000), alice);
+            env.fund(XRP(20000), bob);
+            env.fund(XRP(40000), gw);
+            env.trust(USD(200), alice);
+            env.close();
 
-        XRPAmount const baseFee{env.current()->fees().base};
+            XRPAmount const baseFee{env.current()->fees().base};
+            auto aliceBalance = env.balance(alice, XRP);
+            auto bobBalance = env.balance(bob, XRP);
+            auto gwBalance = env.balance(gw, XRP);
 
-        auto aliceBalance = env.balance(alice, XRP);
-        auto bobBalance = env.balance(bob, XRP);
-        auto gwBalance = env.balance(gw, XRP);
+            // gw gives bob burn permission
+            env(account_permission::accountPermissionSet(
+                gw, bob, {"PaymentBurn"}));
+            env.close();
+            env.require(balance(gw, gwBalance - drops(baseFee)));
+            gwBalance = env.balance(gw, XRP);
+            // bob can not mint on behalf of gw because he only has burn
+            // permission
+            env(pay(bob, alice, USD(50)),
+                onBehalfOf(gw),
+                ter(tecNO_PERMISSION));
+            env.close();
+            env.require(balance(bob, bobBalance - drops(baseFee)));
+            bobBalance = env.balance(bob, XRP);
 
-        // mint tecNO_PERMISSION does not have the required granular permission
-        env(account_permission::accountPermissionSet(
-            gw, bob, {"PaymentBurn"}));
-        env.close();
-        env.require(balance(gw, gwBalance - drops(baseFee)));
-        gwBalance = env.balance(gw, XRP);
-        env(pay(bob, alice, USD(50)), onBehalfOf(gw), ter(tecNO_PERMISSION));
-        env.close();
-        env.require(balance(bob, bobBalance - drops(baseFee)));
-        bobBalance = env.balance(bob, XRP);
+            // gw gives bob mint permission, alice gives bob burn permission
+            env(account_permission::accountPermissionSet(
+                gw, bob, {"PaymentMint"}));
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"PaymentBurn"}));
+            env.close();
+            env.require(balance(alice, aliceBalance - drops(baseFee)));
+            env.require(balance(gw, gwBalance - drops(baseFee)));
+            aliceBalance = env.balance(alice, XRP);
+            gwBalance = env.balance(gw, XRP);
 
-        // gw give bob mint permission, alice give bob burn permission
-        env(account_permission::accountPermissionSet(
-            gw, bob, {"PaymentMint"}));
-        env(account_permission::accountPermissionSet(
-            alice, bob, {"PaymentBurn"}));
-        env.close();
-        env.require(balance(alice, aliceBalance - drops(baseFee)));
-        env.require(balance(gw, gwBalance - drops(baseFee)));
-        aliceBalance = env.balance(alice, XRP);
-        gwBalance = env.balance(gw, XRP);
+            // can not send XRP
+            env(pay(bob, alice, XRP(50)),
+                onBehalfOf(gw),
+                ter(tecNO_PERMISSION));
+            env.close();
+            env.require(balance(bob, bobBalance - drops(baseFee)));
+            bobBalance = env.balance(bob, XRP);
 
-        // granular permission returns tecNO_PERMISSION for XRP issue payment
-        env(pay(bob, alice, XRP(50)), onBehalfOf(gw), ter(tecNO_PERMISSION));
-        env.close();
-        env.require(balance(bob, bobBalance - drops(baseFee)));
-        bobBalance = env.balance(bob, XRP);
+            // mint 50 USD
+            env(pay(bob, alice, USD(50)), onBehalfOf(gw));
+            env.close();
+            env.require(balance(bob, bobBalance - drops(baseFee)));
+            env.require(balance(gw, alice["USD"](-50)));
+            env.require(balance(alice, USD(50)));
+            BEAST_EXPECT(env.balance(bob, USD) == USD(0));
+            bobBalance = env.balance(bob, XRP);
 
-        // mint 50 USD
-        env(pay(bob, alice, USD(50)), onBehalfOf(gw));
-        env.close();
-        env.require(balance(bob, bobBalance - drops(baseFee)));
-        env.require(balance(gw, alice["USD"](-50)));
-        env.require(balance(alice, USD(50)));
-        BEAST_EXPECT(env.balance(bob, USD) == USD(0));
-        bobBalance = env.balance(bob, XRP);
+            // burn 30 USD
+            env(pay(bob, gw, USD(30)), onBehalfOf(alice));
+            env.close();
+            env.require(balance(bob, bobBalance - drops(baseFee)));
+            env.require(balance(gw, alice["USD"](-20)));
+            env.require(balance(alice, USD(20)));
+            BEAST_EXPECT(env.balance(bob, USD) == USD(0));
+            bobBalance = env.balance(bob, XRP);
 
-        // burn 30 USD
-        env(pay(bob, gw, USD(30)), onBehalfOf(alice));
-        env.close();
-        env.require(balance(bob, bobBalance - drops(baseFee)));
-        env.require(balance(gw, alice["USD"](-20)));
-        env.require(balance(alice, USD(20)));
-        BEAST_EXPECT(env.balance(bob, USD) == USD(0));
-        bobBalance = env.balance(bob, XRP);
+            // final balance check
+            env.require(balance(alice, aliceBalance));
+            env.require(balance(bob, bobBalance));
+            env.require(balance(gw, gwBalance));
+        }
 
-        // final balance check
-        env.require(balance(alice, aliceBalance));
-        env.require(balance(bob, bobBalance));
-        env.require(balance(gw, gwBalance));
+        // test PaymentMint won't affect Payment transaction level delegation.
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            Account gw{"gateway"};
+            auto const USD = gw["USD"];
+
+            env.fund(XRP(10000), alice);
+            env.fund(XRP(20000), bob);
+            env.fund(XRP(40000), gw);
+            env.trust(USD(200), alice);
+            env.close();
+
+            XRPAmount const baseFee{env.current()->fees().base};
+
+            auto aliceBalance = env.balance(alice, XRP);
+            auto bobBalance = env.balance(bob, XRP);
+            auto gwBalance = env.balance(gw, XRP);
+
+            // gw gives bob PaymentBurn permission
+            env(account_permission::accountPermissionSet(
+                gw, bob, {"PaymentBurn"}));
+            env.close();
+            env.require(balance(gw, gwBalance - drops(baseFee)));
+            gwBalance = env.balance(gw, XRP);
+
+            // bob can not mint on behalf of gw because he only has burn
+            // permission
+            env(pay(bob, alice, USD(50)),
+                onBehalfOf(gw),
+                ter(tecNO_PERMISSION));
+            env.close();
+            env.require(balance(bob, bobBalance - drops(baseFee)));
+            bobBalance = env.balance(bob, XRP);
+
+            // gw gives bob Payment permission as well
+            env(account_permission::accountPermissionSet(
+                gw, bob, {"PaymentBurn", "Payment"}));
+            env.close();
+
+            // bob now can mint on behalf of gw
+            env(pay(bob, alice, USD(50)), onBehalfOf(gw));
+            env.close();
+            env.require(balance(bob, bobBalance - drops(baseFee)));
+            env.require(balance(gw, alice["USD"](-50)));
+            env.require(balance(alice, USD(50)));
+            BEAST_EXPECT(env.balance(bob, USD) == USD(0));
+            bobBalance = env.balance(bob, XRP);
+        }
     }
 
     void
@@ -4180,14 +4238,14 @@ class AccountPermission_test : public beast::unit_test::suite
         // testDepositPreauth(all);
         // testDID(all);
         // testEscrow(all);
-        // testMPToken(all);
         testMPTokenIssuanceSetGranular(all);
+        testMPToken(all);
         // testNFToken(all);
-        testOracle(all);
-        // testPayment(all);
+        // testOracle(all);
         // testPaymentChannel(all);
         // testPayment(all);
-        // testPaymentGranular(all);
+        testPaymentGranular(all);
+        // testPayment(all);
         // testTrustSet(all);
         // testTrustSetGranular(all);
         // testAccountSetGranular(all);
