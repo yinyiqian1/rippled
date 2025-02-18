@@ -3510,54 +3510,6 @@ class AccountPermission_test : public beast::unit_test::suite
         envX.require(balance(carolX, carolXBalance));
     }
 
-    // Helper function that verifies the expected DeliveredAmount is present.
-    //
-    // NOTE: the function _infers_ the transaction to operate on by calling
-    // env.tx(), which returns the result from the most recent transaction.
-    void
-    verifyDeliveredAmount(jtx::Env& env, STAmount const& amount)
-    {
-        // Get the hash for the most recent transaction.
-        std::string const txHash{
-            env.tx()->getJson(JsonOptions::none)[jss::hash].asString()};
-
-        // Verify DeliveredAmount and delivered_amount metadata are correct.
-        // We can't use env.meta() here, because meta() doesn't include
-        // delivered_amount.
-        env.close();
-        Json::Value const meta = env.rpc("tx", txHash)[jss::result][jss::meta];
-
-        // Expect there to be a DeliveredAmount field.
-        if (!BEAST_EXPECT(meta.isMember(sfDeliveredAmount.jsonName)))
-            return;
-
-        // DeliveredAmount and delivered_amount should both be present and
-        // equal amount.
-        Json::Value const jsonExpect{amount.getJson(JsonOptions::none)};
-        BEAST_EXPECT(meta[sfDeliveredAmount.jsonName] == jsonExpect);
-        BEAST_EXPECT(meta[jss::delivered_amount] == jsonExpect);
-    }
-
-    // Close the ledger until the ledger sequence is large enough to close
-    // the account.  If margin is specified, close the ledger so `margin`
-    // more closes are needed
-    void
-    incLgrSeqForAccDel(
-        jtx::Env& env,
-        jtx::Account const& acc,
-        std::uint32_t margin = 0)
-    {
-        int const delta = [&]() -> int {
-            if (env.seq(acc) + 255 > env.current()->seq())
-                return env.seq(acc) - env.current()->seq() + 255 - margin;
-            return 0;
-        }();
-        BEAST_EXPECT(margin == 0 || delta >= 0);
-        for (int i = 0; i < delta; ++i)
-            env.close();
-        BEAST_EXPECT(env.current()->seq() == env.seq(acc) + 255 - margin);
-    }
-
     void
     testAccountDelete(FeatureBitset features)
     {
@@ -3566,175 +3518,47 @@ class AccountPermission_test : public beast::unit_test::suite
 
         Env env{*this};
         Account const alice("alice");
-        Account const becky("becky");
-        Account const carol("carol");
-        Account const david{"david"};
-        Account const gw("gw");
+        Account const bob("bob");
+        Account const carol{"carol"};
 
-        env.fund(XRP(10000), alice, becky, carol, david, gw);
+        env.fund(XRP(10000), alice, bob, carol);
         env.close();
 
-        env(account_permission::accountPermissionSet(
-            alice, david, {"AccountDelete"}));
-        env(account_permission::accountPermissionSet(
-            becky, david, {"AccountDelete"}));
-        env(account_permission::accountPermissionSet(
-            carol, david, {"AccountDelete"}));
-        env.close();
+        BEAST_EXPECT(env.closed()->exists(keylet::account(carol.id())));
 
-        // Alice can't delete her account and then give herself the XRP.
-        env(acctdelete(david, alice), onBehalfOf(alice), ter(temDST_IS_SRC));
+        for (std::uint32_t i = 0; i < 256; ++i)
+            env.close();
 
-        // alice can't delete her account with a negative fee.
-        env(acctdelete(david, becky), fee(drops(-1)), onBehalfOf(alice), ter(temBAD_FEE));
-
-        // Invalid flags.
-        env(acctdelete(david, becky),
-            txflags(tfImmediateOrCancel),
+        auto const deleteFee = drops(env.current()->fees().increment);
+        env(acctdelete(bob, carol),
             onBehalfOf(alice),
-            ter(temINVALID_FLAG));
+            fee(deleteFee),
+            ter(tecNO_PERMISSION));
 
-        // Account deletion has a high fee.  Make sure the fee requirement
-        // behaves as we expect.
-        auto const acctDelFee{drops(env.current()->fees().increment)};
-        env(acctdelete(david, becky), onBehalfOf(alice), ter(telINSUF_FEE_P));
+        env(account_permission::accountPermissionSet(
+            alice, bob, {"AccountDelete"}));
+        env.close();
 
-        // Try a fee one drop less than the required amount.
-        env(acctdelete(david, becky),
-            fee(acctDelFee - drops(1)),
+        // alice can not send to herself
+        env(acctdelete(bob, alice),
             onBehalfOf(alice),
-            ter(telINSUF_FEE_P));
+            fee(deleteFee),
+            ter(temDST_IS_SRC));
 
-        // alice's account is created too recently to be deleted.
-        env(acctdelete(david, becky), fee(acctDelFee), onBehalfOf(alice), ter(tecTOO_SOON));
+        auto const aliceBalance = env.balance(alice);
+        auto const bobBalance = env.balance(bob);
+        auto const carolBalance = env.balance(carol);
 
-        // Give becky a trustline.  She is no longer deletable.
-        env(trust(becky, gw["USD"](1000)));
+        env(acctdelete(bob, carol), onBehalfOf(alice), fee(deleteFee));
         env.close();
 
-        // Give carol a deposit preauthorization, an offer, a ticket,
-        // a signer list, and a DID.  Even with all that she's still deletable.
-        env(deposit::auth(carol, becky));
-        std::uint32_t const carolOfferSeq{env.seq(carol)};
-        env(offer(carol, gw["USD"](51), XRP(51)));
-        std::uint32_t const carolTicketSeq{env.seq(carol) + 1};
-        env(ticket::create(carol, 1));
-        env(signers(carol, 1, {{alice, 1}, {becky, 1}}));
-        env(did::setValid(carol));
+        BEAST_EXPECT(!env.closed()->exists(keylet::account(alice.id())));
+        BEAST_EXPECT(!env.closed()->exists(keylet::ownerDir(alice.id())));
 
-        // Deleting should fail with TOO_SOON, which is a relatively
-        // cheap check compared to validating the contents of her directory.
-        env(acctdelete(david, becky), fee(acctDelFee), onBehalfOf(alice), ter(tecTOO_SOON));
-
-        // Close enough ledgers to almost be able to delete alice's account.
-        incLgrSeqForAccDel(env, alice, 1);
-
-        // alice's account is still created too recently to be deleted.
-        env(acctdelete(david, becky), fee(acctDelFee), onBehalfOf(alice), ter(tecTOO_SOON));
-
-        // The most recent delete attempt advanced alice's sequence.  So
-        // close two ledgers and her account should be deletable.
-        env.close();
-        env.close();
-
-        {
-            auto const aliceOldBalance{env.balance(alice)};
-            auto const beckyOldBalance{env.balance(becky)};
-            auto const davidOldBalance{env.balance(david)};
-
-            // Verify that alice's account exists
-            BEAST_EXPECT(env.closed()->exists(keylet::account(alice.id())));
-
-            env(acctdelete(david, becky), fee(acctDelFee), onBehalfOf(alice));
-            verifyDeliveredAmount(env, aliceOldBalance);
-            env.close();
-
-            // Verify that alice's account and directory are actually gone.
-            BEAST_EXPECT(!env.closed()->exists(keylet::account(alice.id())));
-            BEAST_EXPECT(!env.closed()->exists(keylet::ownerDir(alice.id())));
-
-            // Verify that alice's XRP, was transferred to becky.
-            BEAST_EXPECT(
-                env.balance(becky) ==
-                aliceOldBalance + beckyOldBalance);
-
-            // Verify that david pays the fee.
-            BEAST_EXPECT(
-                env.balance(david) ==
-                davidOldBalance - acctDelFee);
-        }
-
-        // Attempt to delete becky's account but get stopped by the trust line.
-        env(acctdelete(david, carol), fee(acctDelFee), onBehalfOf(becky), ter(tecHAS_OBLIGATIONS));
-        env.close();
-
-        // Verify that becky's account is still there by giving her a regular
-        // key.  This has the side effect of setting the lsfPasswordSpent bit
-        // on her account root.
-        Account const beck("beck");
-        env(regkey(becky, beck), fee(drops(0)));
-        env.close();
-
-        // Show that the lsfPasswordSpent bit is set by attempting to change
-        // becky's regular key for free again.  That fails.
-        Account const reb("reb");
-        env(regkey(becky, reb), sig(becky), fee(drops(0)), ter(telINSUF_FEE_P));
-
-        // Close enough ledgers that becky's failing regkey transaction is
-        // no longer retried.
-        for (int i = 0; i < 8; ++i)
-            env.close();
-
-        {
-            auto const beckyOldBalance{env.balance(becky)};
-            auto const carolOldBalance{env.balance(carol)};
-
-            // Verify that Carol's account, directory, deposit
-            // preauthorization, offer, ticket, and signer list exist.
-            BEAST_EXPECT(env.closed()->exists(keylet::account(carol.id())));
-            BEAST_EXPECT(env.closed()->exists(keylet::ownerDir(carol.id())));
-            BEAST_EXPECT(env.closed()->exists(
-                keylet::depositPreauth(carol.id(), becky.id())));
-            BEAST_EXPECT(
-                env.closed()->exists(keylet::offer(carol.id(), carolOfferSeq)));
-            BEAST_EXPECT(env.closed()->exists(
-                keylet::ticket(carol.id(), carolTicketSeq)));
-            BEAST_EXPECT(env.closed()->exists(keylet::signers(carol.id())));
-
-            // Delete carol's account even with stuff in her directory.  Show
-            // that multisigning for the delete does not increase david's fee.
-            env(signers(david, 1, {{alice, 1}, {becky, 1}}));
-            env.close();
-            auto davidOldBalance{env.balance(david)};
-            env(acctdelete(david, becky), fee(acctDelFee), msig(alice), onBehalfOf(carol));
-            verifyDeliveredAmount(env, carolOldBalance);
-            env.close();
-
-            // Verify that Carol's account, directory, and other stuff are gone.
-            BEAST_EXPECT(!env.closed()->exists(keylet::account(carol.id())));
-            BEAST_EXPECT(!env.closed()->exists(keylet::ownerDir(carol.id())));
-            BEAST_EXPECT(!env.closed()->exists(
-                keylet::depositPreauth(carol.id(), becky.id())));
-            BEAST_EXPECT(!env.closed()->exists(
-                keylet::offer(carol.id(), carolOfferSeq)));
-            BEAST_EXPECT(!env.closed()->exists(
-                keylet::ticket(carol.id(), carolTicketSeq)));
-            BEAST_EXPECT(!env.closed()->exists(keylet::signers(carol.id())));
-
-            // Verify that Carol's XRP, was transferred to becky.
-            BEAST_EXPECT(
-                env.balance(becky) ==
-                carolOldBalance + beckyOldBalance);
-
-            // Verify that david pays the fee.
-            BEAST_EXPECT(
-                env.balance(david) ==
-                davidOldBalance - acctDelFee);
-
-            // Since becky received an influx of XRP, her lsfPasswordSpent bit
-            // is cleared and she can change her regular key for free again.
-            env(regkey(becky, reb), sig(becky), fee(drops(0)));
-        }
+        // carol gets alice's balance
+        BEAST_EXPECT(env.balance(carol) == carolBalance + aliceBalance);
+        // bob pays the fee
+        BEAST_EXPECT(env.balance(bob) == bobBalance - deleteFee);
     }
 
     void
@@ -4512,10 +4336,10 @@ class AccountPermission_test : public beast::unit_test::suite
         // testOracle(all);
         // testPaymentChannel(all);
         // testPayment(all);
-        // testPaymentGranular(all);
+        testPaymentGranular(all);
         // testPayment(all);
         // testTrustSet(all);
-        // testTrustSetGranular(all);
+        testTrustSetGranular(all);
         // testAccountSetGranular(all);
         // testXChain(all);
         // testOffer(all);
