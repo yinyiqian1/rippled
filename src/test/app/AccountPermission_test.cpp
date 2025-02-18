@@ -4432,6 +4432,59 @@ class AccountPermission_test : public beast::unit_test::suite
     }
 
     void
+    testPath(FeatureBitset features)
+    {
+        testcase("test paths");
+        using namespace jtx;
+        Env env(
+            *this,
+            envconfig([](std::unique_ptr<Config> cfg) {
+                cfg->PATH_SEARCH_OLD = 7;
+                cfg->PATH_SEARCH = 7;
+                cfg->PATH_SEARCH_MAX = 10;
+                return cfg;
+            }),
+            features
+        );
+
+        auto const gw = Account("gateway");
+        auto const USD = gw["USD"];
+        auto const gw2 = Account("gateway2");
+        auto const gw2_USD = gw2["USD"];
+        auto const alice = Account("alice");
+        auto const bob = Account("bob");
+        auto const carol = Account("carol");
+        env.fund(XRP(10000), alice, bob, carol, gw, gw2);
+        env.trust(USD(600), alice);
+        env.trust(gw2_USD(800), alice);
+        env.trust(USD(700), bob);
+        env.trust(gw2_USD(900), bob);
+        env.close();
+
+        env(account_permission::accountPermissionSet(
+            alice,
+            carol,
+            {"Payment"}));
+        env.close();
+
+        env(pay(gw, alice, USD(70)));
+        env(pay(gw2, alice, gw2_USD(70)));
+        env(pay(carol, bob, bob["USD"](140)),
+            paths(alice["USD"], alice.human()),
+            onBehalfOf(alice)
+        );
+        env.close();
+        env.require(balance(alice, USD(0)));
+        env.require(balance(alice, gw2_USD(0)));
+        env.require(balance(bob, USD(70)));
+        env.require(balance(bob, gw2_USD(70)));
+        env.require(balance(gw, alice["USD"](0)));
+        env.require(balance(gw, bob["USD"](-70)));
+        env.require(balance(gw2, alice["USD"](0)));
+        env.require(balance(gw2, bob["USD"](-70)));
+    }
+
+    void
     run() override
     {
         FeatureBitset const all{jtx::supported_amendments()};
@@ -4461,6 +4514,7 @@ class AccountPermission_test : public beast::unit_test::suite
         // testXChain(all);
         // testOffer(all);
         // testTicket(all);
+        testPath(all);
     }
 };
 BEAST_DEFINE_TESTSUITE(AccountPermission, app, ripple);
