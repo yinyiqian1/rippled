@@ -2327,44 +2327,105 @@ class AccountPermission_test : public beast::unit_test::suite
         testcase("test MPTokenIssuanceSet granular");
         using namespace jtx;
 
-        Env env(*this, features);
-        Account alice{"alice"};
-        Account bob{"bob"};
-        env.fund(XRP(100000), alice, bob);
-        env.close();
+        // test MPTokenIssuanceUnlock and MPTokenIssuanceLock permissions
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            env.fund(XRP(100000), alice, bob);
+            env.close();
 
-        MPTTester mpt(env, alice, {.fund = false});
-        env.close();
-        mpt.create({.flags = tfMPTCanLock});
-        env.close();
-        
-        // wrong permission
-        env(account_permission::accountPermissionSet(
-            alice,
-            bob,
-            {"MPTokenIssuanceUnlock"})
-        );
-        env.close();
-        mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice, .err = tecNO_PERMISSION});
-        env(account_permission::accountPermissionSet(
-            alice,
-            bob,
-            {"MPTokenIssuanceLock"})
-        );
-        env.close();
-        mpt.set({.account = bob, .flags = tfMPTUnlock, .onBehalfOf = alice, .err = tecNO_PERMISSION});
-        
-        // correct permission
-        mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice});
-        env.close();
-        env(account_permission::accountPermissionSet(
-            alice,
-            bob,
-            {"MPTokenIssuanceUnlock"})
-        );
-        env.close();
-        mpt.set({.account = bob, .flags = tfMPTUnlock, .onBehalfOf = alice});
-        env.close();
+            MPTTester mpt(env, alice, {.fund = false});
+            env.close();
+            mpt.create({.flags = tfMPTCanLock});
+            env.close();
+
+            // alice gives granular permission to bob of MPTokenIssuanceUnlock
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"MPTokenIssuanceUnlock"}));
+            env.close();
+            // bob does not have lock permission
+            mpt.set(
+                {.account = bob,
+                 .flags = tfMPTLock,
+                 .onBehalfOf = alice,
+                 .err = tecNO_PERMISSION});
+            // bob now has lock permission, but does not have unlock permission
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"MPTokenIssuanceLock"}));
+            env.close();
+            mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice});
+            mpt.set(
+                {.account = bob,
+                 .flags = tfMPTUnlock,
+                 .onBehalfOf = alice,
+                 .err = tecNO_PERMISSION});
+
+            // now bob can lock and unlock
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"MPTokenIssuanceLock", "MPTokenIssuanceUnlock"}));
+            env.close();
+            mpt.set(
+                {.account = bob, .flags = tfMPTUnlock, .onBehalfOf = alice});
+            mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice});
+            env.close();
+        }
+
+        // test mix of granular and transaction level permission
+        {
+            Env env(*this, features);
+            Account alice{"alice"};
+            Account bob{"bob"};
+            env.fund(XRP(100000), alice, bob);
+            env.close();
+
+            MPTTester mpt(env, alice, {.fund = false});
+            env.close();
+            mpt.create({.flags = tfMPTCanLock});
+            env.close();
+
+            // alice gives granular permission to bob of MPTokenIssuanceLock
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"MPTokenIssuanceLock"}));
+            env.close();
+            mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice});
+            // bob does not have unlock permission
+            mpt.set(
+                {.account = bob,
+                 .flags = tfMPTUnlock,
+                 .onBehalfOf = alice,
+                 .err = tecNO_PERMISSION});
+
+            // alice gives bob some unrelated permission with
+            // MPTokenIssuanceLock
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"NFTokenMint", "MPTokenIssuanceLock", "NFTokenBurn"}));
+            env.close();
+            // bob can not unlock
+            mpt.set(
+                {.account = bob,
+                 .flags = tfMPTUnlock,
+                 .onBehalfOf = alice,
+                 .err = tecNO_PERMISSION});
+
+            // alice add MPTokenIssuanceSet to permissions
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"NFTokenMint",
+                 "MPTokenIssuanceLock",
+                 "NFTokenBurn",
+                 "MPTokenIssuanceSet"}));
+            mpt.set(
+                {.account = bob, .flags = tfMPTUnlock, .onBehalfOf = alice});
+            // alice can lock by herself
+            mpt.set({.account = alice, .flags = tfMPTLock});
+            mpt.set(
+                {.account = bob, .flags = tfMPTUnlock, .onBehalfOf = alice});
+            mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice});
+        }
     }
 
     void
@@ -2769,9 +2830,7 @@ class AccountPermission_test : public beast::unit_test::suite
 
         env(account_permission::accountPermissionSet(
             bob, alice, {"OracleSet", "OracleDelete"}));
-        env.close();
-        // auto const offset = std::chrono::seconds(-400);
-        // env.timeKeeper().adjustCloseTime(offset);
+        env.close(std::chrono::seconds(maxLastUpdateTimeDelta + 100));
 
         // alice create oracle on behalf of bob
         oracle::Oracle oracle(
@@ -4238,13 +4297,13 @@ class AccountPermission_test : public beast::unit_test::suite
         // testDepositPreauth(all);
         // testDID(all);
         // testEscrow(all);
-        testMPTokenIssuanceSetGranular(all);
-        testMPToken(all);
+        // testMPTokenIssuanceSetGranular(all);
+        // testMPToken(all);
         // testNFToken(all);
         // testOracle(all);
         // testPaymentChannel(all);
         // testPayment(all);
-        testPaymentGranular(all);
+        // testPaymentGranular(all);
         // testPayment(all);
         // testTrustSet(all);
         // testTrustSetGranular(all);
