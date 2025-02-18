@@ -2324,7 +2324,47 @@ class AccountPermission_test : public beast::unit_test::suite
     void
     testMPTokenIssuanceSetGranular(FeatureBitset features)
     {
+        testcase("test MPTokenIssuanceSet granular");
+        using namespace jtx;
 
+        Env env(*this, features);
+        Account alice{"alice"};
+        Account bob{"bob"};
+        env.fund(XRP(100000), alice, bob);
+        env.close();
+
+        MPTTester mpt(env, alice, {.fund = false});
+        env.close();
+        mpt.create({.flags = tfMPTCanLock});
+        env.close();
+        
+        // wrong permission
+        env(account_permission::accountPermissionSet(
+            alice,
+            bob,
+            {"MPTokenIssuanceUnlock"})
+        );
+        env.close();
+        mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice, .err = tecNO_PERMISSION});
+        env(account_permission::accountPermissionSet(
+            alice,
+            bob,
+            {"MPTokenIssuanceLock"})
+        );
+        env.close();
+        mpt.set({.account = bob, .flags = tfMPTUnlock, .onBehalfOf = alice, .err = tecNO_PERMISSION});
+        
+        // correct permission
+        mpt.set({.account = bob, .flags = tfMPTLock, .onBehalfOf = alice});
+        env.close();
+        env(account_permission::accountPermissionSet(
+            alice,
+            bob,
+            {"MPTokenIssuanceUnlock"})
+        );
+        env.close();
+        mpt.set({.account = bob, .flags = tfMPTUnlock, .onBehalfOf = alice});
+        env.close();
     }
 
     void
