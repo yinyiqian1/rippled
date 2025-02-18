@@ -273,14 +273,22 @@ SetAccount::doApply()
     bool granularDelegated = false;
     if (ctx_.tx.isDelegated() && !ctx_.permissions.empty())
     {
-        // if permissions is not empty, granular delegation is happening.
-        granularDelegated = true;
+        if (ctx_.permissions.empty())
+            // AccountSet is prohibited to be delegated unless it's granular
+            // delegation
+            return tecNO_PERMISSION;
+        else
+        {
+            // if permissions is not empty, granular delegation is happening.
+            granularDelegated = true;
 
-        // We don't support any flag based granular permission under AccountSet
-        // transaction. If any delegated account is trying to update the flag
-        // onbehalf of another account, it is not authorized.
-        if (uSetFlag != 0 || uClearFlag != 0 || uTxFlags != 0)
-            return tecNO_AUTH;
+            // We don't support any flag based granular permission under
+            // AccountSet transaction. If any delegated account is trying to
+            // update the flag onbehalf of another account, it is not
+            // authorized.
+            if (uSetFlag != 0 || uClearFlag != 0 || uTxFlags != 0)
+                return tecNO_PERMISSION;
+        }
     }
 
     bool const bSetRequireDest{
@@ -468,7 +476,7 @@ SetAccount::doApply()
         if (granularDelegated &&
             ctx_.permissions.find(AccountEmailHashSet) ==
                 ctx_.permissions.end())
-            return tecNO_AUTH;
+            return tecNO_PERMISSION;
 
         uint128 const uHash = tx.getFieldH128(sfEmailHash);
 
@@ -490,7 +498,7 @@ SetAccount::doApply()
     if (tx.isFieldPresent(sfWalletLocator))
     {
         if (granularDelegated)
-            return tecNO_AUTH;
+            return tecNO_PERMISSION;
 
         uint256 const uHash = tx.getFieldH256(sfWalletLocator);
 
@@ -514,7 +522,7 @@ SetAccount::doApply()
         if (granularDelegated &&
             ctx_.permissions.find(AccountMessageKeySet) ==
                 ctx_.permissions.end())
-            return tecNO_AUTH;
+            return tecNO_PERMISSION;
 
         Blob const messageKey = tx.getFieldVL(sfMessageKey);
 
@@ -561,7 +569,7 @@ SetAccount::doApply()
         if (granularDelegated &&
             ctx_.permissions.find(AccountTransferRateSet) ==
                 ctx_.permissions.end())
-            return tecNO_AUTH;
+            return tecNO_PERMISSION;
 
         std::uint32_t uRate = tx.getFieldU32(sfTransferRate);
 
@@ -584,7 +592,7 @@ SetAccount::doApply()
     {
         if (granularDelegated &&
             ctx_.permissions.find(AccountTickSizeSet) == ctx_.permissions.end())
-            return tecNO_AUTH;
+            return tecNO_PERMISSION;
 
         auto uTickSize = tx[sfTickSize];
         if ((uTickSize == 0) || (uTickSize == Quality::maxTickSize))

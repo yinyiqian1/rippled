@@ -352,7 +352,7 @@ Payment::doApply()
         bool authorized = false;
         auto const amountIssue = dstAmount.issue();
         if (isXRP(amountIssue))
-            return tecNO_AUTH;
+            return tecNO_PERMISSION;
         if (amountIssue.account == account_ &&
             ctx_.permissions.contains(PaymentMint))
             authorized = true;
@@ -361,7 +361,7 @@ Payment::doApply()
             authorized = true;
 
         if (!authorized)
-            return tecNO_AUTH;
+            return tecNO_PERMISSION;
     }
 
     bool const mptDirect = dstAmount.holds<MPTIssue>();

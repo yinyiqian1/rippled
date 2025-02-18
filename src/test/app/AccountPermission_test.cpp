@@ -2724,6 +2724,8 @@ class AccountPermission_test : public beast::unit_test::suite
         env(account_permission::accountPermissionSet(
             bob, alice, {"OracleSet", "OracleDelete"}));
         env.close();
+        // auto const offset = std::chrono::seconds(-400);
+        // env.timeKeeper().adjustCloseTime(offset);
 
         // alice create oracle on behalf of bob
         oracle::Oracle oracle(
@@ -3591,14 +3593,13 @@ class AccountPermission_test : public beast::unit_test::suite
         auto bobBalance = env.balance(bob, XRP);
         auto gwBalance = env.balance(gw, XRP);
 
-
-        // mint tecNO_AUTH does not have the required granular permission
+        // mint tecNO_PERMISSION does not have the required granular permission
         env(account_permission::accountPermissionSet(
             gw, bob, {"PaymentBurn"}));
         env.close();
         env.require(balance(gw, gwBalance - drops(baseFee)));
         gwBalance = env.balance(gw, XRP);
-        env(pay(bob, alice, USD(50)), onBehalfOf(gw), ter(tecNO_AUTH));
+        env(pay(bob, alice, USD(50)), onBehalfOf(gw), ter(tecNO_PERMISSION));
         env.close();
         env.require(balance(bob, bobBalance - drops(baseFee)));
         bobBalance = env.balance(bob, XRP);
@@ -3614,8 +3615,8 @@ class AccountPermission_test : public beast::unit_test::suite
         aliceBalance = env.balance(alice, XRP);
         gwBalance = env.balance(gw, XRP);
 
-        // granular permission returns tecNO_AUTH for XRP issue payment
-        env(pay(bob, alice, XRP(50)), onBehalfOf(gw), ter(tecNO_AUTH));
+        // granular permission returns tecNO_PERMISSION for XRP issue payment
+        env(pay(bob, alice, XRP(50)), onBehalfOf(gw), ter(tecNO_PERMISSION));
         env.close();
         env.require(balance(bob, bobBalance - drops(baseFee)));
         bobBalance = env.balance(bob, XRP);
@@ -3885,6 +3886,238 @@ class AccountPermission_test : public beast::unit_test::suite
     }
 
     void
+    testAccountSetGranular(FeatureBitset features)
+    {
+        testcase("test AccountSet granular permissions");
+        using namespace jtx;
+
+        // test AccountDomainSet, AccountEmailHashSet,
+        // AccountMessageKeySet,AccountTransferRateSet, and AccountTickSizeSet
+        // granular permissions
+        {
+            Env env(*this, features);
+            auto const alice = Account{"alice"};
+            auto const bob = Account{"bob"};
+            env.fund(XRP(10000), alice, bob);
+            env.close();
+
+            // bob does not have permission to set domain
+            // on behalf of alice
+            std::string const domain = "example.com";
+            auto jt = noop(bob);
+            jt[sfDomain.fieldName] = strHex(domain);
+            jt[sfOnBehalfOf.fieldName] = alice.human();
+            env(jt, ter(tecNO_PERMISSION));
+
+            // alice give granular permission of AccountDomainSet to bob
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"AccountDomainSet"}));
+            env.close();
+
+            // bob set account domain on behalf of alice
+            env(jt);
+            BEAST_EXPECT((*env.le(alice))[sfDomain] == makeSlice(domain));
+
+            // bob can reset domain
+            jt[sfDomain.fieldName] = "";
+            env(jt);
+            BEAST_EXPECT(!env.le(alice)->isFieldPresent(sfDomain));
+
+            // bob tries to update domain and set email hash,
+            // but he does not have permission to set email hash
+            jt[sfDomain.fieldName] = strHex(domain);
+            std::string const mh("5F31A79367DC3137FADA860C05742EE6");
+            jt[sfEmailHash.fieldName] = mh;
+            env(jt, ter(tecNO_PERMISSION));
+
+            // alice give granular permission of AccountEmailHashSet to bob
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"AccountDomainSet", "AccountEmailHashSet"}));
+            env.close();
+            env(jt);
+            BEAST_EXPECT(to_string((*env.le(alice))[sfEmailHash]) == mh);
+            BEAST_EXPECT((*env.le(alice))[sfDomain] == makeSlice(domain));
+
+            // bob does not have permission to set message key for alice
+            auto const rkp = randomKeyPair(KeyType::ed25519);
+            jt[sfMessageKey.fieldName] = strHex(rkp.first.slice());
+            env(jt, ter(tecNO_PERMISSION));
+
+            // alice give granular permission of AccountMessageKeySet to bob
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"AccountDomainSet",
+                 "AccountEmailHashSet",
+                 "AccountMessageKeySet"}));
+            env.close();
+
+            // bob can set message key for alice
+            env(jt);
+            BEAST_EXPECT(
+                strHex((*env.le(alice))[sfMessageKey]) ==
+                strHex(rkp.first.slice()));
+            jt[sfMessageKey.fieldName] = "";
+            env(jt);
+            BEAST_EXPECT(!env.le(alice)->isFieldPresent(sfMessageKey));
+
+            // bob does not have permission to set transfer rate for alice
+            env(rate(bob, 2.0), onBehalfOf(alice), ter(tecNO_PERMISSION));
+
+            // alice give granular permission of AccountTransferRateSet to bob
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"AccountDomainSet",
+                 "AccountEmailHashSet",
+                 "AccountMessageKeySet",
+                 "AccountTransferRateSet"}));
+            env.close();
+            env(rate(bob, 2.0), onBehalfOf(alice));
+            BEAST_EXPECT((*env.le(alice))[sfTransferRate] == 2000000000);
+
+            // bob does not have permission to set ticksize for alice
+            jt[sfTickSize.fieldName] = 8;
+            env(jt, ter(tecNO_PERMISSION));
+
+            // alice give granular permission of AccountTickSizeSet to bob
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"AccountDomainSet",
+                 "AccountEmailHashSet",
+                 "AccountMessageKeySet",
+                 "AccountTransferRateSet",
+                 "AccountTickSizeSet"}));
+            env.close();
+            env(jt);
+            BEAST_EXPECT((*env.le(alice))[sfTickSize] == 8);
+
+            // can not set asfRequireAuth flag for alice
+            // get tecOWNERS because alice owns account permission object
+            env(fset(bob, asfRequireAuth), onBehalfOf(alice), ter(tecOWNERS));
+
+            // reset account permission will delete the account permission
+            // object
+            env(account_permission::accountPermissionSet(alice, bob, {}));
+            // bib still does not have permission to set asfRequireAuth for
+            // alice
+            env(fset(bob, asfRequireAuth),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            // alice can set for herself
+            env(fset(alice, asfRequireAuth));
+            env.require(flags(alice, asfRequireAuth));
+            env.close();
+
+            // can not update tick size because bob no longer has permission
+            jt[sfTickSize.fieldName] = 7;
+            env(jt, ter(tecNO_PERMISSION));
+
+            // bob does not have permission to set wallet locater for alice
+            std::string const locator =
+                "9633EC8AF54F16B5286DB1D7B519EF49EEFC050C0C8AC4384F1D88ACD1BFDF"
+                "05";
+            jt[sfWalletLocator.fieldName] = locator;
+            env(jt, ter(tecNO_PERMISSION));
+        }
+
+        // can not set AccountSet flags on behalf of other account
+        {
+            Env env(*this, features);
+            auto const alice = Account{"alice"};
+            auto const bob = Account{"bob"};
+            env.fund(XRP(10000), alice, bob);
+            env.close();
+
+            auto testSetClearFlag = [&](std::uint32_t flag) {
+                // bob can not set flag on behalf of alice
+                env(fset(bob, flag), onBehalfOf(alice), ter(tecNO_PERMISSION));
+                // alice set by herself
+                env(fset(alice, flag));
+                env.close();
+                env.require(flags(alice, flag));
+                // bob can not clear on behalf of alice
+                env(fclear(bob, flag),
+                    onBehalfOf(alice),
+                    ter(tecNO_PERMISSION));
+            };
+
+            // testSetClearFlag(asfNoFreeze);
+            testSetClearFlag(asfRequireAuth);
+            testSetClearFlag(asfAllowTrustLineClawback);
+
+            // alice gives some granular permissions to bob
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"AccountDomainSet",
+                 "AccountEmailHashSet",
+                 "AccountMessageKeySet"}));
+            env.close();
+
+            testSetClearFlag(asfDefaultRipple);
+            testSetClearFlag(asfDepositAuth);
+            testSetClearFlag(asfDisallowIncomingCheck);
+            testSetClearFlag(asfDisallowIncomingNFTokenOffer);
+            testSetClearFlag(asfDisallowIncomingPayChan);
+            testSetClearFlag(asfDisallowIncomingTrustline);
+            testSetClearFlag(asfDisallowXRP);
+            testSetClearFlag(asfRequireDest);
+            testSetClearFlag(asfGlobalFreeze);
+
+            // bob can not set asfAccountTxnID on behalf of alice
+            env(fset(bob, asfAccountTxnID),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env(fset(alice, asfAccountTxnID));
+            env.close();
+            BEAST_EXPECT(env.le(alice)->isFieldPresent(sfAccountTxnID));
+            env(fclear(bob, asfAccountTxnID),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+
+            // bob can not set asfAuthorizedNFTokenMinter on behalf of alice
+            Json::Value jt = fset(bob, asfAuthorizedNFTokenMinter);
+            jt[sfOnBehalfOf.fieldName] = alice.human();
+            jt[sfNFTokenMinter.fieldName] = bob.human();
+            env(jt, ter(tecNO_PERMISSION));
+
+            // bob gives alice some permissions
+            env(account_permission::accountPermissionSet(
+                bob,
+                alice,
+                {"AccountDomainSet",
+                 "AccountEmailHashSet",
+                 "AccountMessageKeySet"}));
+            env.close();
+
+            // since we can not set asfNoFreeze if asfAllowTrustLineClawback is
+            // set, which can not be clear either. Test alice set asfNoFreeze on
+            // behalf of bob.
+            env(fset(alice, asfNoFreeze),
+                onBehalfOf(bob),
+                ter(tecNO_PERMISSION));
+            env(fset(bob, asfNoFreeze));
+            env.close();
+            env.require(flags(bob, asfNoFreeze));
+            // alice can not clear on behalf of bob
+            env(fclear(alice, asfNoFreeze),
+                onBehalfOf(bob),
+                ter(tecNO_PERMISSION));
+
+            // bob can not set asfDisableMaster on behalf of alice
+            Account const bobKey{"bobKey", KeyType::secp256k1};
+            env(regkey(bob, bobKey));
+            env.close();
+            env(fset(bob, asfDisableMaster),
+                onBehalfOf(alice),
+                sig(bob),
+                ter(tecNO_PERMISSION));
+        }
+    }
+
+    void
     run() override
     {
         FeatureBitset const all{jtx::supported_amendments()};
@@ -3892,7 +4125,7 @@ class AccountPermission_test : public beast::unit_test::suite
         // testInvalidRequest(all);
         // testPermissionCRUD(all);
         // testDelegatingSequenceAndTicket(all);
-        // testAccountDelete(all);
+        // //testAccountDelete(all);
         // testAMM(all);
         // testCheck(all);
         // testClawback(all);
@@ -3902,21 +4135,18 @@ class AccountPermission_test : public beast::unit_test::suite
         // testEscrow(all);
         // testMPToken(all);
         // testNFToken(all);
-        // testOracle(all);
+        testOracle(all);
         // testPayment(all);
-        testPaymentChannel(all);
-<<<<<<< HEAD
-        testPayment(all);
-        testPaymentGranular(all);
-=======
+        // testPaymentChannel(all);
         // testPayment(all);
         // testPaymentGranular(all);
->>>>>>> refs/remotes/origin/accountpermission_test
+        // testPayment(all);
         // testTrustSet(all);
-        testTrustSetGranular(all);
+        // testTrustSetGranular(all);
+        // testAccountSetGranular(all);
         // testXChain(all);
-        testOffer(all);
-        testTicket(all);
+        // testOffer(all);
+        // testTicket(all);
     }
 };
 BEAST_DEFINE_TESTSUITE(AccountPermission, app, ripple);
