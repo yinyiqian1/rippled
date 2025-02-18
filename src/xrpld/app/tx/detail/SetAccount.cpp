@@ -271,24 +271,18 @@ SetAccount::doApply()
     std::uint32_t const uTxFlags{tx.getFlags()};
 
     bool granularDelegated = false;
+    // AccountSet can not be delegated on the transaction level.
     if (ctx_.tx.isDelegated() && !ctx_.permissions.empty())
     {
-        if (ctx_.permissions.empty())
-            // AccountSet is prohibited to be delegated unless it's granular
-            // delegation
-            return tecNO_PERMISSION;
-        else
-        {
-            // if permissions is not empty, granular delegation is happening.
-            granularDelegated = true;
+        // if permissions is not empty, granular delegation is happening.
+        granularDelegated = true;
 
-            // We don't support any flag based granular permission under
-            // AccountSet transaction. If any delegated account is trying to
-            // update the flag onbehalf of another account, it is not
-            // authorized.
-            if (uSetFlag != 0 || uClearFlag != 0 || uTxFlags != 0)
-                return tecNO_PERMISSION;
-        }
+        // We don't support any flag based granular permission under
+        // AccountSet transaction. If any delegated account is trying to
+        // update the flag onbehalf of another account, it is not
+        // authorized.
+        if (uSetFlag != 0 || uClearFlag != 0 || uTxFlags != 0)
+            return tecNO_PERMISSION;
     }
 
     bool const bSetRequireDest{

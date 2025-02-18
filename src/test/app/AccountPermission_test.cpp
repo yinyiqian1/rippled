@@ -4020,66 +4020,128 @@ class AccountPermission_test : public beast::unit_test::suite
     void
     testTrustSetGranular(FeatureBitset features)
     {
-        testcase("test TrustSet granular");
+        testcase("test TrustSet granular permissions");
         using namespace jtx;
 
-        Env env(*this, features);
-        Account gw{"gw"};
-        Account alice{"alice"};
-        Account bob{"bob"};
-        env.fund(XRP(10000), gw, alice, bob);
-        env(fset(alice, asfRequireAuth));
-        env.close();
+        // test TrustlineUnfreeze, TrustlineFreeze and TrustlineAuthorize
+        {
+            Env env(*this, features);
+            Account gw{"gw"};
+            Account alice{"alice"};
+            Account bob{"bob"};
+            env.fund(XRP(10000), gw, alice, bob);
+            env(fset(alice, asfRequireAuth));
+            env.close();
 
-        // cannot create new trust line with granular permission
-        env(account_permission::accountPermissionSet(
-            alice, bob, {"TrustlineUnfreeze"}));
-        env.close();
-        env(trust(bob, gw["USD"](50), 0), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env.close();
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"TrustlineUnfreeze"}));
+            env.close();
+            // bob can not create trustline on behalf of alice because he only
+            // has unfreeze permission
+            env(trust(bob, gw["USD"](50), 0),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env.close();
 
-        // prepare trust line
-        env(trust(alice, gw["USD"](50), 0));
-        env.close();
+            // alice creates trustline by herself
+            env(trust(alice, gw["USD"](50), 0));
+            env.close();
 
-        // unsupported flags with granular permission
-        env(trust(bob, gw["USD"](50), tfSetNoRipple), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env(trust(bob, gw["USD"](50), tfClearNoRipple), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env(trust(bob, gw["USD"](50), tfClearFreeze), qualityInPercent(90), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env(trust(bob, gw["USD"](50), tfClearFreeze), qualityOutPercent(120), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env.close();
+            // unsupported flags
+            env(trust(bob, gw["USD"](50), tfSetNoRipple),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env(trust(bob, gw["USD"](50), tfClearNoRipple),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env.close();
 
-        // supported flags with wrong permission
-        env(trust(bob, gw["USD"](50), tfSetfAuth), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env(trust(bob, gw["USD"](50), tfSetFreeze), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env.close();
-        env(account_permission::accountPermissionSet(
-            alice, bob, {"TrustlineAuthorize"}));
-        env.close();
-        env(trust(bob, gw["USD"](50), tfClearFreeze), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env.close();
+            // supported flags with wrong permission
+            env(trust(bob, gw["USD"](50), tfSetfAuth),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env(trust(bob, gw["USD"](50), tfSetFreeze),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env.close();
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"TrustlineAuthorize"}));
+            env.close();
+            env(trust(bob, gw["USD"](50), tfClearFreeze),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env.close();
 
-        // supported flags with correct permission
-        env(trust(bob, gw["USD"](50), tfSetfAuth), onBehalfOf(alice));
-        env.close();
-        env(account_permission::accountPermissionSet(
-            alice, bob, {"TrustlineFreeze"}));
-        env.close();
-        env(trust(bob, gw["USD"](50), tfSetFreeze), onBehalfOf(alice));
-        env.close();
-        env(account_permission::accountPermissionSet(
-            alice, bob, {"TrustlineUnfreeze"}));
-        env.close();
-        env(trust(bob, gw["USD"](50), tfClearFreeze), onBehalfOf(alice));
-        env.close();
+            // supported flags with correct permission
+            env(trust(bob, gw["USD"](50), tfSetfAuth), onBehalfOf(alice));
+            env.close();
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"TrustlineAuthorize", "TrustlineFreeze"}));
+            env.close();
+            env(trust(bob, gw["USD"](50), tfSetFreeze), onBehalfOf(alice));
+            env.close();
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"TrustlineAuthorize", "TrustlineUnfreeze"}));
+            env.close();
+            env(trust(bob, gw["USD"](50), tfClearFreeze), onBehalfOf(alice));
+            env.close();
+            // but bob can not freeze trustline because he no longer has freeze
+            // permission
+            env(trust(bob, gw["USD"](50), tfSetFreeze),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
 
-        // cannot update LimitAmout with granular permission, both high and low account
-        env(trust(gw, alice["USD"](50), 0));
-        env(account_permission::accountPermissionSet(
-            gw, bob, {"TrustlineUnfreeze"}));
-        env.close();
-        env(trust(bob, gw["USD"](100)), onBehalfOf(alice), ter(tecNO_PERMISSION));
-        env(trust(bob, alice["USD"](100)), onBehalfOf(gw), ter(tecNO_PERMISSION));
+            // cannot update LimitAmout with granular permission, both high and
+            // low account
+            env(trust(gw, alice["USD"](50), 0));
+            env(account_permission::accountPermissionSet(
+                gw, bob, {"TrustlineUnfreeze"}));
+            env.close();
+            env(trust(bob, gw["USD"](100)),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+            env(trust(bob, alice["USD"](100)),
+                onBehalfOf(gw),
+                ter(tecNO_PERMISSION));
+        }
+
+        // test mix of transaction level delegation and granular delegation
+        {
+            Env env(*this, features);
+            Account gw{"gw"};
+            Account alice{"alice"};
+            Account bob{"bob"};
+            env.fund(XRP(10000), gw, alice, bob);
+            env(fset(alice, asfRequireAuth));
+            env.close();
+
+            env(account_permission::accountPermissionSet(
+                alice, bob, {"TrustlineUnfreeze", "NFTokenCreateOffer"}));
+            env.close();
+            env(trust(bob, gw["USD"](50), 0),
+                onBehalfOf(alice),
+                ter(tecNO_PERMISSION));
+
+            // add TrustSet permission and some unrelated permission
+            env(account_permission::accountPermissionSet(
+                alice,
+                bob,
+                {"TrustlineUnfreeze",
+                 "NFTokenCreateOffer",
+                 "TrustSet",
+                 "AccountTransferRateSet"}));
+            env.close();
+            env(trust(bob, gw["USD"](50), 0), onBehalfOf(alice));
+            env.close();
+
+            // since bob has TrustSet permission, he does not need
+            // TrustlineFreeze granular permission to freeze the trustline
+            env(trust(bob, gw["USD"](50), tfSetFreeze), onBehalfOf(alice));
+            env(trust(bob, gw["USD"](50), tfClearFreeze), onBehalfOf(alice));
+            env(trust(bob, gw["USD"](50), tfSetNoRipple), onBehalfOf(alice));
+            env(trust(bob, gw["USD"](50), tfClearNoRipple), onBehalfOf(alice));
+            env(trust(bob, gw["USD"](50), tfSetfAuth), onBehalfOf(alice));
+        }
     }
 
     void
