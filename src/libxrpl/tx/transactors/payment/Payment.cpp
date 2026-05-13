@@ -279,14 +279,52 @@ Payment::checkGranularSemantics(
     if (tx.isFieldPresent(sfSendMax) && tx[sfSendMax].asset() != amountAsset)
         return terNO_DELEGATE_PERMISSION;
 
-    // PaymentMint and PaymentBurn apply to both IOU and MPT direct payments.
-    if (heldGranularPermissions.contains(PaymentMint) && !isXRP(amountAsset) &&
-        amountAsset.getIssuer() == tx[sfAccount])
-        return tesSUCCESS;
+    if (isXRP(amountAsset))
+        return terNO_DELEGATE_PERMISSION;
 
-    if (heldGranularPermissions.contains(PaymentBurn) && !isXRP(amountAsset) &&
-        amountAsset.getIssuer() == tx[sfDestination])
-        return tesSUCCESS;
+    // For MPT payment, the issuer field is canonical, so no endpoint aliasing is possible.
+    if (amountAsset.holds<MPTIssue>())
+    {
+        if (heldGranularPermissions.contains(PaymentMint) &&
+            amountAsset.getIssuer() == tx[sfAccount])
+            return tesSUCCESS;
+        if (heldGranularPermissions.contains(PaymentBurn) &&
+            amountAsset.getIssuer() == tx[sfDestination])
+            return tesSUCCESS;
+        return terNO_DELEGATE_PERMISSION;
+    }
+
+    // For IOU payments, either endpoint may be encoded as the issuer in
+    // sfAmount. PaySteps normalizes those endpoint aliases, so sfAmount.issuer
+    // alone does not reliably identify whether the transaction issues or redeems
+    // IOUs. We determine PaymentMint vs PaymentBurn from the trustline balance
+    // direction instead.
+    {
+        auto const account = tx[sfAccount];
+        auto const destination = tx[sfDestination];
+        auto const& issue = amountAsset.get<Issue>();
+
+        // Reject if neither endpoint is the issuer.
+        if (issue.account != account && issue.account != destination)
+            return terNO_DELEGATE_PERMISSION;
+
+        auto const sle = view.read(keylet::line(account, destination, issue.currency));
+        if (!sle)
+            return terNO_DELEGATE_PERMISSION;
+
+        bool const accountIsLow = (account < destination);
+        STAmount const rawBalance = sle->getFieldAmount(sfBalance);
+        bool const accountIsHolder =
+            accountIsLow ? rawBalance > beast::kZERO : rawBalance < beast::kZERO;
+
+        // PaymentMint requires the destination to be the holder.
+        if (heldGranularPermissions.contains(PaymentMint) && !accountIsHolder)
+            return tesSUCCESS;
+
+        // PaymentBurn requires the source account to be the holder.
+        if (heldGranularPermissions.contains(PaymentBurn) && accountIsHolder)
+            return tesSUCCESS;
+    }
 
     return terNO_DELEGATE_PERMISSION;
 }
