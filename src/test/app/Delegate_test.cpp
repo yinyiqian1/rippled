@@ -1180,7 +1180,7 @@ class Delegate_test : public beast::unit_test::Suite
             }
             else
             {
-                // Post-fixCleanup3_4_: Rejected because it exceeds what alice holds.
+                // Post-fixCleanup3_4_0: Rejected because it exceeds what alice holds.
                 env(pay(alice, gw, gwUSD(100)), delegate::As(bob), Ter(terNO_DELEGATE_PERMISSION));
                 env.require(Balance(alice, gwUSD(50)));
                 env.require(Balance(gw, aliceUSD(-50)));
